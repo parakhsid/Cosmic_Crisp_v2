@@ -1,4 +1,5 @@
 import {GoogleGenAI, Type} from '@google/genai';
+import {ECOCROP_BY_ID} from '../src/data/ecoCrop.ts';
 import type {
   CropPrediction,
   FarmInsightBundle,
@@ -117,19 +118,28 @@ export async function analyzeGeospatialWithGemini(input: {
     farmerInputs: input.farmerInputs,
     extractedXarrayLayers: input.geospatial.sources,
     unifiedGrid: input.geospatial.unifiedGrid,
-    topStatisticalCandidates: input.topPredictions.slice(0, 4).map((p) => ({
-      cropId: p.cropId,
-      score: p.score,
-      expectedYieldTHa: p.expectedYieldTHa,
-      roiPct: p.roiPct,
-      estNetMarginUsdHa: p.estNetMarginUsdHa,
-      growingDays: p.growingDays,
-      seasonFitsWindow: p.seasonFitsWindow,
-      laborFits: p.laborFits,
-      slopeSuitable: p.slopeSuitable,
-      missingEquipment: p.missingEquipment,
-      isTraditionalRegional: p.isTraditionalRegional,
-    })),
+    topStatisticalCandidates: input.topPredictions.slice(0, 6).map((p) => {
+      const eco = ECOCROP_BY_ID[p.cropId];
+      return {
+        cropId: p.cropId,
+        commonName: eco?.CommonName ?? p.cropId,
+        scientificName: eco?.ScientificName ?? '',
+        category: eco?.CAT ?? '',
+        score: p.score,
+        expectedYieldTHa: p.expectedYieldTHa,
+        roiPct: p.roiPct,
+        estNetMarginUsdHa: p.estNetMarginUsdHa,
+        growingDays: p.growingDays,
+        seasonFitsWindow: p.seasonFitsWindow,
+        laborFits: p.laborFits,
+        slopeSuitable: p.slopeSuitable,
+        missingEquipment: p.missingEquipment,
+        isTraditionalRegional: p.isTraditionalRegional,
+        regionalRank: p.regionalRank,
+      };
+    }),
+    regionalZoneLabel: input.bundle?.location.regionalZoneLabel,
+    regionalSource: input.bundle?.location.regionalSource,
     currentSnapshot: input.bundle?.currentSnapshot,
   };
 

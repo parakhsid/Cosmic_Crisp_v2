@@ -1,7 +1,15 @@
 import {ArrowRight, PlusCircle, Trash2} from 'lucide-react';
 import {useState} from 'react';
-import {CROP_SPECS} from '../data/cropsAndLocations';
+import {ECOCROP_GROUPS} from '../data/ecoCrop';
 import {cropLabel, t} from '../i18n/translations';
+import {
+  acresToHa,
+  formatArea,
+  haToAcres,
+  tHaToTonsAc,
+  tonsAcToTHa,
+  type UnitSystem,
+} from '../lib/units';
 import type {
   FarmInsightBundle,
   HarvestLogEntry,
@@ -10,6 +18,7 @@ import type {
 
 interface FarmLogViewProps {
   lang: LanguageCode;
+  unit: UnitSystem;
   bundle: FarmInsightBundle | null;
   logs: HarvestLogEntry[];
   onAddLog: (entry: Omit<HarvestLogEntry, 'id'>) => void;
@@ -19,6 +28,7 @@ interface FarmLogViewProps {
 
 export function FarmLogView({
   lang,
+  unit,
   bundle,
   logs,
   onAddLog,
@@ -78,10 +88,14 @@ export function FarmLogView({
               onChange={(e) => setCropId(e.target.value)}
               className="w-full min-h-[44px] rounded-lg border border-[#CBD5E1] px-3 text-sm text-[#0F172A]"
             >
-              {CROP_SPECS.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {cropLabel(lang, c.id)}
-                </option>
+              {ECOCROP_GROUPS.map((group) => (
+                <optgroup key={group.category} label={t(lang, group.labelKey)}>
+                  {group.crops.map((c) => (
+                    <option key={c.cropId} value={c.cropId}>
+                      {cropLabel(lang, c.cropId)} ({c.ScientificName})
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
@@ -108,15 +122,26 @@ export function FarmLogView({
                 htmlFor="log-yield"
                 className="block text-xs font-semibold text-[#334155] mb-1.5"
               >
-                {t(lang, 'label_actual_yield')}
+                {unit === 'imperial'
+                  ? t(lang, 'label_actual_yield_tons_ac')
+                  : t(lang, 'label_actual_yield')}
               </label>
               <input
                 id="log-yield"
                 type="number"
                 step="0.1"
                 min={0.1}
-                value={actualYieldTHa}
-                onChange={(e) => setActualYieldTHa(Number(e.target.value))}
+                value={
+                  unit === 'imperial'
+                    ? Number(tHaToTonsAc(actualYieldTHa).toFixed(2))
+                    : actualYieldTHa
+                }
+                onChange={(e) => {
+                  const val = Math.max(0.1, Number(e.target.value) || 0.1);
+                  setActualYieldTHa(
+                    unit === 'imperial' ? Number(tonsAcToTHa(val).toFixed(2)) : val
+                  );
+                }}
                 className="w-full min-h-[44px] rounded-lg border border-[#CBD5E1] px-3 font-mono-tabular text-sm text-[#0F172A]"
               />
             </div>
@@ -127,14 +152,25 @@ export function FarmLogView({
               htmlFor="log-area"
               className="block text-xs font-semibold text-[#334155] mb-1.5"
             >
-              {t(lang, 'label_field_area')}
+              {unit === 'metric'
+                ? t(lang, 'label_field_area_ha')
+                : t(lang, 'label_field_area')}
             </label>
             <input
               id="log-area"
               type="number"
               min={1}
-              value={areaAcres}
-              onChange={(e) => setAreaAcres(Number(e.target.value))}
+              value={
+                unit === 'metric'
+                  ? Math.max(1, Math.round(acresToHa(areaAcres)))
+                  : Math.round(areaAcres)
+              }
+              onChange={(e) => {
+                const val = Math.max(1, Number(e.target.value) || 1);
+                setAreaAcres(
+                  unit === 'metric' ? Math.max(1, Math.round(haToAcres(val))) : val
+                );
+              }}
               className="w-full min-h-[44px] rounded-lg border border-[#CBD5E1] px-3 font-mono-tabular text-sm text-[#0F172A]"
             />
           </div>
@@ -185,8 +221,10 @@ export function FarmLogView({
                       </span>
                     </div>
                     <div className="mt-1 text-xs text-[#475569] font-mono-tabular">
-                      {entry.locationName} · {entry.areaAcres} ac ·{' '}
-                      {entry.actualYieldTHa.toFixed(1)} t/ha
+                      {entry.locationName} · {formatArea(entry.areaAcres, unit)} ·{' '}
+                      {unit === 'imperial'
+                        ? `${tHaToTonsAc(entry.actualYieldTHa).toFixed(2)} tons/ac`
+                        : `${entry.actualYieldTHa.toFixed(1)} t/ha`}
                     </div>
                     {entry.notes && (
                       <p className="mt-1 text-xs text-[#64748B]">{entry.notes}</p>

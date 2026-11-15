@@ -1,3 +1,4 @@
+import {ECOCROP_BY_ID} from '../data/ecoCrop';
 import type {EquipmentId, LanguageCode} from '../types/agronomy';
 
 export const LANGUAGE_LABELS: Record<LanguageCode, string> = {
@@ -37,12 +38,15 @@ const en = {
   // Farmer Inputs
   inputs_title: 'Your Farm Inputs',
   inputs_subtitle: 'Pick location, current crop, water, labor, and machinery.',
-  label_location: 'County or City',
-  placeholder_location: 'Search county, city, or region...',
+  label_location: 'Any Place on Earth (City or Lat, Lon)',
+  placeholder_location: 'Search any city, village, or lat, lon (e.g. 35.68, 139.76)...',
   label_presets: 'Quick Farm Regions',
   label_current_crop: 'Current / Just-Harvested Crop',
   label_harvest_month: 'Harvest Month',
   label_field_area: 'Acres',
+  label_field_area_ha: 'Hectares (ha)',
+  unit_metric: 'Metric',
+  unit_imperial: 'Imperial',
   label_water_availability: 'Water Availability for Irrigation',
   water_rainfed: 'Rainfed',
   water_limited: 'Limited',
@@ -196,6 +200,8 @@ const en = {
   thresh_drought: 'Drought Wetness Below (%)',
   thresh_rain: 'Heavy Rain Above (mm/day)',
   active_alerts_title: 'Upcoming Weather Outlook & Alerts',
+  weather_10d_title: 'Next 10-Day Predicted Weather',
+  weather_10d_subtitle: 'Open-Meteo Global Forecast',
   no_active_alerts: 'No critical weather hazards detected in the next 16 days for your thresholds.',
   offline_packs_title: 'Cached Offline Farm Packs',
   offline_packs_subtitle: 'Save locations now so full satellite, soil, and crop models stay available with zero signal.',
@@ -223,6 +229,7 @@ const en = {
   log_subtitle: 'Record completed harvests locally (saved offline) to guide rotation predictions.',
   log_form_title: 'Add Completed Harvest',
   label_actual_yield: 'Actual Yield (t/ha)',
+  label_actual_yield_tons_ac: 'Actual Yield (tons/ac)',
   label_harvest_date: 'Harvest Date',
   label_notes: 'Field Notes',
   btn_add_log: 'Save Harvest Cycle',
@@ -271,6 +278,28 @@ const en = {
   ai_soil_moisture_title: 'Soil & Moisture Diagnosis',
   ai_terrain_season_title: 'Terrain & Growing Season Risk',
   ai_checklist_title: 'Field Action Checklist',
+
+  // EcoCrop Categories
+  crop_cat_cereals: 'Cereals',
+  crop_cat_legumes: 'Legumes',
+  crop_cat_tubers: 'Tubers & Roots',
+  crop_cat_oilseeds_fiber: 'Oilseeds & Fiber',
+  crop_cat_vegetables: 'Vegetables & Specialty',
+  crop_cat_orchards: 'Fruits & Orchards',
+  crop_cat_forage: 'Forage & Cover Crops',
+
+  // EcoCrop Compatibility Explorer
+  explorer_title: 'FAO EcoCrop Rotation Explorer',
+  explorer_subtitle: 'All compatible plants ranked for local climate, soil, and regional markets.',
+  explorer_search_placeholder: 'Search crop, scientific name, or family...',
+  explorer_filter_all: 'All Species',
+  explorer_filter_high_fit: 'Strong Fit (70+)',
+  explorer_filter_regional: 'Regional Staples',
+  explorer_filter_nitrogen: 'Nitrogen Fixers',
+  explorer_show_all: 'Show All Species',
+  explorer_show_top: 'Show Top 18',
+  explorer_regional_staple: 'Regional Staple',
+  explorer_climate_option: 'Climate Option',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -592,7 +621,9 @@ export function t(lang: LanguageCode, key: TranslationKey): string {
 
 export function cropLabel(lang: LanguageCode, cropId: string): string {
   const key = `crop_${cropId}` as TranslationKey;
-  return DICTIONARIES[lang]?.[key] ?? en[key] ?? cropId;
+  const dictVal = DICTIONARIES[lang]?.[key] ?? en[key];
+  if (dictVal && dictVal !== key) return dictVal;
+  return ECOCROP_BY_ID[cropId]?.CommonName ?? cropId;
 }
 
 export function equipmentLabel(lang: LanguageCode, eqId: EquipmentId): string {

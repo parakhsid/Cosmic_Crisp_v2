@@ -1,1 +1,1 @@
-"""CropNext in-memory geospatial data-ingestion package."""
+"""Cosmic Crisp in-memory geospatial data-ingestion package."""

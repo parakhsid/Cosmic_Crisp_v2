@@ -13,12 +13,15 @@ import type {
   FarmInsightBundle,
   FarmProfileSummary,
   LanguageCode,
+  UnitSystem,
 } from '../types/agronomy';
 
 interface WorkspaceToolbarProps {
   bundle: FarmInsightBundle | null;
   lang: LanguageCode;
   onChangeLang: (lang: LanguageCode) => void;
+  unit: UnitSystem;
+  onChangeUnit: (unit: UnitSystem) => void;
   isOfflineActive: boolean;
   simulateOffline: boolean;
   onToggleSimulateOffline: () => void;
@@ -39,6 +42,8 @@ export function WorkspaceToolbar({
   bundle,
   lang,
   onChangeLang,
+  unit,
+  onChangeUnit,
   isOfflineActive,
   simulateOffline,
   onToggleSimulateOffline,
@@ -198,6 +203,30 @@ export function WorkspaceToolbar({
             <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />
             {t(lang, 'simulate_offline')}
           </button>
+
+          <div
+            role="group"
+            aria-label="Unit System"
+            className="flex items-center gap-0.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-0.5"
+          >
+            {(['metric', 'imperial'] as UnitSystem[]).map((sys) => {
+              const active = unit === sys;
+              return (
+                <button
+                  key={sys}
+                  type="button"
+                  onClick={() => onChangeUnit(sys)}
+                  className={`min-h-[30px] rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    active
+                      ? 'bg-[#0F172A] text-white'
+                      : 'text-[#475569] hover:text-[#0F172A]'
+                  }`}
+                >
+                  {sys === 'metric' ? t(lang, 'unit_metric') : t(lang, 'unit_imperial')}
+                </button>
+              );
+            })}
+          </div>
 
           <div
             role="group"

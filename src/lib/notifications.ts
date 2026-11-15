@@ -42,7 +42,7 @@ export async function dispatchCropPushNotification(params: {
             body: params.body,
             icon: '/pwa-192x192.png',
             badge: '/pwa-192x192.png',
-            tag: `cropnext-${params.severity}`,
+            tag: `cosmic-crisp-${params.severity}`,
             requireInteraction: params.severity === 'critical',
           });
           return {deliveredVia: 'service_worker', log};

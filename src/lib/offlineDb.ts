@@ -7,7 +7,7 @@ import type {
   SyncQueueMutation,
 } from '../types/agronomy';
 
-const DB_NAME = 'CropNextOfflineDB';
+const DB_NAME = 'CosmicCrispOfflineDB';
 const DB_VERSION = 2;
 
 const STORE_PACKS = 'farmPacks';
@@ -68,7 +68,7 @@ export async function saveFarmPack(pack: CachedFarmPack): Promise<void> {
       tx.onerror = () => reject(tx.error);
     });
   } catch {
-    localStorage.setItem(`cropnext_pack_${pack.key}`, JSON.stringify(pack));
+    localStorage.setItem(`cosmic_crisp_pack_${pack.key}`, JSON.stringify(pack));
   }
 }
 
@@ -82,7 +82,7 @@ export async function getFarmPack(key: string): Promise<CachedFarmPack | null> {
       req.onerror = () => reject(req.error);
     });
   } catch {
-    const raw = localStorage.getItem(`cropnext_pack_${key}`);
+    const raw = localStorage.getItem(`cosmic_crisp_pack_${key}`);
     return raw ? (JSON.parse(raw) as CachedFarmPack) : null;
   }
 }
@@ -112,7 +112,7 @@ export async function deleteFarmPack(key: string): Promise<void> {
       tx.onerror = () => reject(tx.error);
     });
   } catch {
-    localStorage.removeItem(`cropnext_pack_${key}`);
+    localStorage.removeItem(`cosmic_crisp_pack_${key}`);
   }
 }
 
@@ -129,7 +129,7 @@ export async function saveFarmProfileCache(
       tx.onerror = () => reject(tx.error);
     });
   } catch {
-    localStorage.setItem(`cropnext_farm_${farm.id}`, JSON.stringify(farm));
+    localStorage.setItem(`cosmic_crisp_farm_${farm.id}`, JSON.stringify(farm));
   }
 }
 
@@ -145,7 +145,7 @@ export async function getFarmProfileCache(
       req.onerror = () => reject(req.error);
     });
   } catch {
-    const raw = localStorage.getItem(`cropnext_farm_${farmId}`);
+    const raw = localStorage.getItem(`cosmic_crisp_farm_${farmId}`);
     return raw ? (JSON.parse(raw) as FarmProfileRecord) : null;
   }
 }
@@ -180,7 +180,7 @@ export async function enqueueSyncMutation(
   } catch {
     const existing = await listSyncQueue();
     localStorage.setItem(
-      'cropnext_sync_queue',
+      'cosmic_crisp_sync_queue',
       JSON.stringify([...existing, mutation])
     );
   }
@@ -200,7 +200,7 @@ export async function listSyncQueue(
     const sorted = list.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     return farmId ? sorted.filter((m) => m.farmId === farmId) : sorted;
   } catch {
-    const raw = localStorage.getItem('cropnext_sync_queue');
+    const raw = localStorage.getItem('cosmic_crisp_sync_queue');
     const parsed = raw ? (JSON.parse(raw) as SyncQueueMutation[]) : [];
     return farmId ? parsed.filter((m) => m.farmId === farmId) : parsed;
   }
@@ -221,7 +221,7 @@ export async function clearSyncQueueItems(ids: string[]): Promise<void> {
     const existing = await listSyncQueue();
     const idSet = new Set(ids);
     localStorage.setItem(
-      'cropnext_sync_queue',
+      'cosmic_crisp_sync_queue',
       JSON.stringify(existing.filter((m) => !idSet.has(m.id)))
     );
   }
@@ -238,7 +238,7 @@ export async function listHarvestLogs(): Promise<HarvestLogEntry[]> {
     });
     return items.sort((a, b) => b.harvestDate.localeCompare(a.harvestDate));
   } catch {
-    const raw = localStorage.getItem('cropnext_harvest_logs');
+    const raw = localStorage.getItem('cosmic_crisp_harvest_logs');
     return raw ? (JSON.parse(raw) as HarvestLogEntry[]) : [];
   }
 }
@@ -255,7 +255,7 @@ export async function saveHarvestLog(entry: HarvestLogEntry): Promise<void> {
   } catch {
     const existing = await listHarvestLogs();
     localStorage.setItem(
-      'cropnext_harvest_logs',
+      'cosmic_crisp_harvest_logs',
       JSON.stringify([entry, ...existing])
     );
   }
@@ -273,7 +273,7 @@ export async function deleteHarvestLog(id: string): Promise<void> {
   } catch {
     const existing = await listHarvestLogs();
     localStorage.setItem(
-      'cropnext_harvest_logs',
+      'cosmic_crisp_harvest_logs',
       JSON.stringify(existing.filter((x) => x.id !== id))
     );
   }
@@ -307,7 +307,7 @@ export async function saveAlertThresholds(value: AlertThresholds): Promise<void>
       tx.onerror = () => reject(tx.error);
     });
   } catch {
-    localStorage.setItem('cropnext_alert_thresholds', JSON.stringify(value));
+    localStorage.setItem('cosmic_crisp_alert_thresholds', JSON.stringify(value));
   }
 }
 

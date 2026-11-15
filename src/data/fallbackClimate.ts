@@ -158,12 +158,29 @@ export function buildRegionalFallbackBundle(loc: LocationOption): FarmInsightBun
         : i % 3 === 0
         ? Math.round(3 + seed * 6)
         : 0;
+    const weatherCode =
+      tempMinC <= 0 && precipMm > 0
+        ? 73
+        : precipMm >= 14
+        ? 63
+        : precipMm > 0
+        ? 61
+        : i % 2 === 0
+        ? 1
+        : 2;
+    const precipProbPct =
+      precipMm >= 14 ? 80 : precipMm > 0 ? 55 : Math.round(10 + seed * 20);
+    const windMaxKmh = Number((11 + seed * 14 + (i % 4) * 2.5).toFixed(1));
     return {
       date,
       tempMinC,
       tempMaxC,
       precipMm,
       et0Mm: Number(Math.max(1.2, (tempMaxC - 4) * 0.18).toFixed(1)),
+      weatherCode,
+      precipProbPct,
+      windMaxKmh,
+      uvIndexMax: Number(Math.max(1.5, Math.min(10, 6.5 - absLat * 0.06)).toFixed(1)),
     };
   });
 
@@ -197,5 +214,15 @@ export function buildRegionalFallbackBundle(loc: LocationOption): FarmInsightBun
     monthlyClimate,
     yearlyAnomalies,
     forecast16d,
+    currentWeather: {
+      tempC: currentMonthStats.tempC,
+      apparentTempC: currentMonthStats.tempC,
+      humidityPct: currentMonthStats.relativeHumidityPct,
+      precipMm: forecast16d[0]?.precipMm ?? 0,
+      windKmh: forecast16d[0]?.windMaxKmh ?? 12,
+      weatherCode: forecast16d[0]?.weatherCode ?? 1,
+      observedAt: new Date().toISOString(),
+      timezone: 'UTC',
+    },
   };
 }

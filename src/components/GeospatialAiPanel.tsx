@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import {useState} from 'react';
 import {t} from '../i18n/translations';
+import {cToF, mToFt, mmToIn, type UnitSystem} from '../lib/units';
 import type {
   AiAgronomyAnalysis,
   GeospatialIngestionPayload,
@@ -19,6 +20,7 @@ import type {
 
 interface GeospatialAiPanelProps {
   lang: LanguageCode;
+  unit?: UnitSystem;
   lat: number;
   lon: number;
   locationName: string;
@@ -51,29 +53,74 @@ const LAYER_LABELS: Record<string, string> = {
   soil_sand_pct: 'SoilGrids Sand (0–5 cm)',
 };
 
+function formatLayerStat(
+  stat: GeospatialLayerSummary,
+  unit: UnitSystem
+): {meanLabel: string; rangeLabel: string | null} {
+  if (stat.mean === null) return {meanLabel: '—', rangeLabel: null};
+  if (unit === 'imperial') {
+    if (stat.units === 'm') {
+      return {
+        meanLabel: `${Math.round(mToFt(stat.mean))} ft`,
+        rangeLabel:
+          stat.min !== null && stat.max !== null
+            ? `min ${Math.round(mToFt(stat.min))} · max ${Math.round(mToFt(stat.max))}`
+            : null,
+      };
+    }
+    if (stat.units === '°C' || stat.units === 'C') {
+      return {
+        meanLabel: `${cToF(stat.mean).toFixed(1)} °F`,
+        rangeLabel:
+          stat.min !== null && stat.max !== null
+            ? `min ${cToF(stat.min).toFixed(1)} · max ${cToF(stat.max).toFixed(1)}`
+            : null,
+      };
+    }
+    if (stat.units === 'mm' || stat.units === 'mm/day') {
+      const u = stat.units === 'mm/day' ? 'in/day' : 'in';
+      return {
+        meanLabel: `${mmToIn(stat.mean).toFixed(2)} ${u}`,
+        rangeLabel:
+          stat.min !== null && stat.max !== null
+            ? `min ${mmToIn(stat.min).toFixed(2)} · max ${mmToIn(stat.max).toFixed(2)}`
+            : null,
+      };
+    }
+  }
+  return {
+    meanLabel: `${stat.mean} ${stat.units}`,
+    rangeLabel:
+      stat.min !== null && stat.max !== null
+        ? `min ${stat.min} · max ${stat.max}`
+        : null,
+  };
+}
+
 function LayerStatsRow({
   layerKey,
   stat,
+  unit,
 }: {
   layerKey: string;
   stat: GeospatialLayerSummary;
+  unit: UnitSystem;
 }) {
+  const {meanLabel, rangeLabel} = formatLayerStat(stat, unit);
+  const rawLabel = LAYER_LABELS[layerKey] ?? layerKey;
+  const label =
+    unit === 'imperial' ? rawLabel.replace('0–5 cm', '0–2 in') : rawLabel;
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F1F5F9] py-2 text-xs last:border-b-0">
       <div className="min-w-0">
-        <div className="font-semibold text-[#0F172A]">
-          {LAYER_LABELS[layerKey] ?? layerKey}
-        </div>
+        <div className="font-semibold text-[#0F172A]">{label}</div>
         <div className="text-[11px] text-[#64748B]">{stat.dataset}</div>
       </div>
       <div className="text-right font-mono-tabular shrink-0">
-        <div className="font-bold text-[#0F172A]">
-          {stat.mean !== null ? `${stat.mean} ${stat.units}` : '—'}
-        </div>
-        {stat.min !== null && stat.max !== null && (
-          <div className="text-[11px] text-[#64748B]">
-            min {stat.min} · max {stat.max}
-          </div>
+        <div className="font-bold text-[#0F172A]">{meanLabel}</div>
+        {rangeLabel && (
+          <div className="text-[11px] text-[#64748B]">{rangeLabel}</div>
         )}
       </div>
     </div>
@@ -82,6 +129,7 @@ function LayerStatsRow({
 
 export function GeospatialAiPanel({
   lang,
+  unit = 'metric',
   lat,
   lon,
   locationName,
@@ -182,9 +230,15 @@ export function GeospatialAiPanel({
                 onChange={(e) => setBufferDeg(Number(e.target.value))}
                 className="min-h-[34px] rounded border border-[#CBD5E1] bg-white px-2 font-mono-tabular text-xs text-[#0F172A]"
               >
-                <option value={0.02}>±0.02° (~4 km)</option>
-                <option value={0.05}>±0.05° (~11 km)</option>
-                <option value={0.1}>±0.10° (~22 km)</option>
+                <option value={0.02}>
+                  {unit === 'imperial' ? '±0.02° (~2.5 mi)' : '±0.02° (~4 km)'}
+                </option>
+                <option value={0.05}>
+                  {unit === 'imperial' ? '±0.05° (~6.8 mi)' : '±0.05° (~11 km)'}
+                </option>
+                <option value={0.1}>
+                  {unit === 'imperial' ? '±0.10° (~13.7 mi)' : '±0.10° (~22 km)'}
+                </option>
               </select>
             </label>
             <span className="font-mono-tabular text-[#64748B]">
@@ -299,7 +353,7 @@ export function GeospatialAiPanel({
             <div className="mt-2">
               {pc && Object.keys(pc.layers).length > 0 ? (
                 Object.entries(pc.layers).map(([k, stat]) => (
-                  <LayerStatsRow key={k} layerKey={k} stat={stat} />
+                  <LayerStatsRow key={k} layerKey={k} stat={stat} unit={unit} />
                 ))
               ) : (
                 <p className="py-2 text-xs text-[#64748B]">
@@ -314,7 +368,7 @@ export function GeospatialAiPanel({
             <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#E2E8F0]">
               <span className="flex items-center gap-1.5 text-xs font-bold text-[#0F172A]">
                 <Database className="h-3.5 w-3.5 text-[#15803D]" aria-hidden="true" />
-                ISRIC SoilGrids (250m)
+                {unit === 'imperial' ? 'ISRIC SoilGrids (820ft)' : 'ISRIC SoilGrids (250m)'}
               </span>
               <span className="font-mono-tabular text-[11px] font-semibold text-[#15803D]">
                 {sg?.status ?? '—'}
@@ -323,7 +377,7 @@ export function GeospatialAiPanel({
             <div className="mt-2">
               {sg && Object.keys(sg.layers).length > 0 ? (
                 Object.entries(sg.layers).map(([k, stat]) => (
-                  <LayerStatsRow key={k} layerKey={k} stat={stat} />
+                  <LayerStatsRow key={k} layerKey={k} stat={stat} unit={unit} />
                 ))
               ) : (
                 <p className="py-2 text-xs text-[#64748B]">
@@ -347,7 +401,7 @@ export function GeospatialAiPanel({
             <div className="mt-2">
               {ed && Object.keys(ed.layers).length > 0 ? (
                 Object.entries(ed.layers).map(([k, stat]) => (
-                  <LayerStatsRow key={k} layerKey={k} stat={stat} />
+                  <LayerStatsRow key={k} layerKey={k} stat={stat} unit={unit} />
                 ))
               ) : (
                 <div className="py-2 space-y-2 text-xs leading-relaxed text-[#64748B]">

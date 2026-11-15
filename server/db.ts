@@ -15,13 +15,13 @@ import type {
   SyncQueueMutation,
 } from '../src/types/agronomy.ts';
 
-interface CropNextDbSchema {
+interface CosmicCrispDbSchema {
   version: 1;
   farms: Record<string, FarmProfileRecord>;
 }
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
-const DB_FILE = path.join(DATA_DIR, 'cropnext-db.json');
+const DB_FILE = path.join(DATA_DIR, 'cosmic-crisp-db.json');
 
 export const DEFAULT_THRESHOLDS: AlertThresholds = {
   pushEnabled: false,
@@ -31,7 +31,7 @@ export const DEFAULT_THRESHOLDS: AlertThresholds = {
   heavyRainMm: 35,
 };
 
-function buildSeedDb(): CropNextDbSchema {
+function buildSeedDb(): CosmicCrispDbSchema {
   const now = new Date().toISOString();
   const storyIa = GLOBAL_FARM_HUBS[0];
   const ludhianaIn =
@@ -129,11 +129,11 @@ function buildSeedDb(): CropNextDbSchema {
 
 let writeQueue: Promise<unknown> = Promise.resolve();
 
-async function ensureDbFile(): Promise<CropNextDbSchema> {
+async function ensureDbFile(): Promise<CosmicCrispDbSchema> {
   await fs.mkdir(DATA_DIR, {recursive: true});
   try {
     const raw = await fs.readFile(DB_FILE, 'utf8');
-    const parsed = JSON.parse(raw) as CropNextDbSchema;
+    const parsed = JSON.parse(raw) as CosmicCrispDbSchema;
     if (parsed && parsed.version === 1 && parsed.farms && Object.keys(parsed.farms).length > 0) {
       return parsed;
     }
@@ -145,14 +145,14 @@ async function ensureDbFile(): Promise<CropNextDbSchema> {
   return seeded;
 }
 
-async function atomicWriteDb(db: CropNextDbSchema): Promise<void> {
+async function atomicWriteDb(db: CosmicCrispDbSchema): Promise<void> {
   await fs.mkdir(DATA_DIR, {recursive: true});
   const tmpFile = `${DB_FILE}.${process.pid}.${Date.now()}.tmp`;
   await fs.writeFile(tmpFile, JSON.stringify(db, null, 2), 'utf8');
   await fs.rename(tmpFile, DB_FILE);
 }
 
-function runSerialized<T>(fn: (db: CropNextDbSchema) => Promise<T> | T): Promise<T> {
+function runSerialized<T>(fn: (db: CosmicCrispDbSchema) => Promise<T> | T): Promise<T> {
   const next = writeQueue.then(async () => {
     const db = await ensureDbFile();
     return await fn(db);

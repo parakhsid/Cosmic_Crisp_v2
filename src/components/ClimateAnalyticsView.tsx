@@ -3,6 +3,12 @@ import {useEffect, useMemo, useState} from 'react';
 import {cropLabel, t} from '../i18n/translations';
 import {predictNextCropsApi} from '../lib/apiClient';
 import {predictNextCrops} from '../lib/statisticalModel';
+import {
+  formatNitrogenDelta,
+  formatSoilDepth,
+  tHaToTonsAc,
+  type UnitSystem,
+} from '../lib/units';
 import type {
   CropPrediction,
   EquipmentId,
@@ -22,6 +28,7 @@ import {CircularGauge, ResilientPhoto, VISUAL_ASSETS} from './VisualAssets';
 
 interface ClimateAnalyticsViewProps {
   lang: LanguageCode;
+  unit: UnitSystem;
   bundle: FarmInsightBundle | null;
   activeFarmId: string;
   isOfflineActive: boolean;
@@ -40,6 +47,7 @@ interface ClimateAnalyticsViewProps {
 
 export function ClimateAnalyticsView({
   lang,
+  unit,
   bundle,
   activeFarmId,
   isOfflineActive,
@@ -228,7 +236,7 @@ export function ClimateAnalyticsView({
         </div>
 
         <div className="mt-6">
-          <SoilHealthProfileChart soil={bundle.soil} lang={lang} />
+          <SoilHealthProfileChart soil={bundle.soil} lang={lang} unit={unit} />
         </div>
       </section>
 
@@ -252,7 +260,7 @@ export function ClimateAnalyticsView({
               {t(lang, 'wetness_chart_title')}
             </h2>
             <span className="font-mono-tabular text-xs text-[#64748B]">
-              GWETROOT (0–100 cm)
+              {unit === 'imperial' ? 'GWETROOT (0–39 in)' : 'GWETROOT (0–100 cm)'}
             </span>
           </div>
           <RootWetnessChart data={bundle.monthlyClimate} />
@@ -302,12 +310,13 @@ export function ClimateAnalyticsView({
 
             <div>
               <div className="flex items-center justify-between text-xs font-semibold text-[#334155]">
-                <label htmlFor="sim-n-slider">{t(lang, 'sim_n_label')}</label>
+                <label htmlFor="sim-n-slider">
+                  {unit === 'imperial'
+                    ? 'Nitrogen Adjustment (lb/ac)'
+                    : t(lang, 'sim_n_label')}
+                </label>
                 <span className="font-mono-tabular text-sm text-[#0F172A]">
-                  {sensitivity.nitrogenBoostKgHa > 0
-                    ? `+${sensitivity.nitrogenBoostKgHa}`
-                    : sensitivity.nitrogenBoostKgHa}{' '}
-                  kg/ha
+                  {formatNitrogenDelta(sensitivity.nitrogenBoostKgHa, unit)}
                 </span>
               </div>
               <input
@@ -355,9 +364,16 @@ export function ClimateAnalyticsView({
               {topThreeBase.map((base) => {
                 const sim =
                   simulatedPredictions.find((s) => s.cropId === base.cropId) ?? base;
-                const diff = Number(
-                  (sim.expectedYieldTHa - base.expectedYieldTHa).toFixed(2)
-                );
+                const baseVal =
+                  unit === 'imperial'
+                    ? tHaToTonsAc(base.expectedYieldTHa)
+                    : base.expectedYieldTHa;
+                const simVal =
+                  unit === 'imperial'
+                    ? tHaToTonsAc(sim.expectedYieldTHa)
+                    : sim.expectedYieldTHa;
+                const diff = Number((simVal - baseVal).toFixed(2));
+                const unitSuffix = unit === 'imperial' ? 't/ac' : 't/ha';
                 return (
                   <div
                     key={base.cropId}
@@ -367,10 +383,10 @@ export function ClimateAnalyticsView({
                       {cropLabel(lang, base.cropId)}
                     </span>
                     <span className="text-right font-mono-tabular text-[#475569]">
-                      {base.expectedYieldTHa.toFixed(2)} t/ha
+                      {baseVal.toFixed(2)} {unitSuffix}
                     </span>
                     <span className="text-right font-mono-tabular font-bold text-[#0F172A]">
-                      {sim.expectedYieldTHa.toFixed(2)} t/ha{' '}
+                      {simVal.toFixed(2)} {unitSuffix}{' '}
                       <span
                         className={`text-xs ${
                           diff > 0
@@ -417,7 +433,7 @@ export function ClimateAnalyticsView({
                 {bundle.soil.layers.map((layer) => (
                   <tr key={layer.depth} className="hover:bg-[#F8FAFC]">
                     <td className="py-3 pr-2 font-medium text-[#0F172A] whitespace-nowrap">
-                      {layer.depth}
+                      {formatSoilDepth(layer.depth, unit)}
                     </td>
                     <td className="py-3 px-2 text-right font-mono-tabular text-[#0F172A]">
                       {layer.ph.toFixed(1)}

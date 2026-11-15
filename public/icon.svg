@@ -1,23 +1,49 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="96" fill="#15803D" />
+  <rect width="512" height="512" rx="108" fill="#0F172A" />
+  <!-- Subtle cosmic orbital ring -->
+  <ellipse
+    cx="256"
+    cy="272"
+    rx="184"
+    ry="84"
+    transform="rotate(-22 256 272)"
+    stroke="#38BDF8"
+    stroke-opacity="0.38"
+    stroke-width="14"
+  />
+  <!-- Leaf -->
   <path
-    d="M256 384V216"
-    stroke="#FFFFFF"
-    stroke-width="28"
+    d="M262 152C264 102 310 72 356 80C352 128 312 158 262 152Z"
+    fill="#22C55E"
+  />
+  <!-- Stem -->
+  <path
+    d="M256 174C256 142 264 114 278 96"
+    stroke="#FDE68A"
+    stroke-width="18"
     stroke-linecap="round"
   />
+  <!-- Cosmic Crisp Apple Body -->
   <path
-    d="M256 264C256 184 320 132 392 140C392 220 336 276 256 264Z"
-    fill="#DCFCE7"
+    d="M256 184C216 156 138 170 128 258C118 344 176 426 226 426C242 426 250 416 256 416C262 416 270 426 286 426C336 426 394 344 384 258C374 170 296 156 256 184Z"
+    fill="#DC2626"
   />
+  <!-- Crisp Sunburst / Lenticel Sparkles -->
   <path
-    d="M256 296C256 226 196 176 120 184C120 264 176 312 256 296Z"
-    fill="#FFFFFF"
+    d="M352 140L360 162L382 170L360 178L352 200L344 178L322 170L344 162Z"
+    fill="#FDE047"
   />
+  <circle cx="196" cy="238" r="10" fill="#FEF08A" fill-opacity="0.9" />
+  <circle cx="174" cy="276" r="6" fill="#FEF08A" fill-opacity="0.85" />
+  <circle cx="222" cy="284" r="5" fill="#FEF08A" fill-opacity="0.8" />
+  <circle cx="316" cy="242" r="7" fill="#FEF08A" fill-opacity="0.85" />
+  <circle cx="298" cy="318" r="5" fill="#FEF08A" fill-opacity="0.75" />
+  <!-- Crisp Shine -->
   <path
-    d="M148 392H364"
-    stroke="#BBF7D0"
-    stroke-width="24"
+    d="M172 230C166 252 166 282 176 310"
+    stroke="#FCA5A5"
+    stroke-width="14"
     stroke-linecap="round"
+    stroke-opacity="0.6"
   />
 </svg>

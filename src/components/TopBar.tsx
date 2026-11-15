@@ -39,13 +39,18 @@ export function TopBar({
     <>
       <header className="sticky top-0 z-30 border-b border-[#E2E8F0] bg-white/95 backdrop-blur-sm">
         <div className="mx-auto flex h-14 md:h-16 max-w-7xl items-center justify-between gap-8 px-4 sm:px-6 lg:px-8">
-          {/* Zone 1: Single text element wordmark */}
+          {/* Zone 1: Main Cosmic Crisp Logo & Wordmark */}
           <button
             type="button"
             onClick={() => onSelectTab('overview')}
-            className="font-display text-xl font-extrabold tracking-tight text-[#0F172A] whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#15803D]"
+            className="inline-flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight text-[#0F172A] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#15803D]"
           >
-            CropNext
+            <img
+              src="/icon.svg"
+              alt="Cosmic Crisp logo"
+              className="h-8 w-8 rounded-lg shrink-0"
+            />
+            <span>Cosmic Crisp</span>
           </button>
 
           {/* Zone 2: Single-line navigation links */}

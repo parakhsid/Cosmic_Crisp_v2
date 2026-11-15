@@ -1,8 +1,6 @@
 {
-  "name": "CropNext",
+  "name": "Cosmic Crisp",
   "description": "Global crop rotation and yield advisory dashboard powered by NASA satellite weather, SoilGrids, and USDA agronomic benchmarks with offline PWA support.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

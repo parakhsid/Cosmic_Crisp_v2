@@ -17,12 +17,10 @@ import {useOnlineStatus} from './hooks/useOnlineStatus';
 import {t, type TranslationKey} from './i18n/translations';
 import {
   addHarvestLogApi,
-  analyzeWithAiApi,
   appendAlertHistoryApi,
   createFarmApi,
   deleteHarvestLogApi,
   fetchFarmsBootstrap,
-  ingestGeospatialApi,
   patchFarmSettingsApi,
   predictNextCropsApi,
   syncOfflineMutationsApi,
@@ -50,7 +48,6 @@ import {
 } from './lib/offlineDb';
 import {evaluateWeatherAlerts, predictNextCrops} from './lib/statisticalModel';
 import type {
-  AiAgronomyAnalysis,
   AlertThresholds,
   CachedFarmPack,
   CropPrediction,
@@ -60,7 +57,6 @@ import type {
   FarmProfileRecord,
   FarmProfileSummary,
   FarmSettings,
-  GeospatialIngestionPayload,
   HarvestLogEntry,
   LaborAvailability,
   LanguageCode,
@@ -68,6 +64,7 @@ import type {
   NavTab,
   SlopeClass,
   SyncQueueMutation,
+  UnitSystem,
   WaterAvailability,
   WeatherAlert,
   YieldSensitivity,
@@ -89,12 +86,16 @@ export default function App() {
     },
   ]);
   const [activeFarmId, setActiveFarmId] = useState<string>(() => {
-    return localStorage.getItem('cropnext_active_farm_id') || DEFAULT_FARM_ID;
+    return localStorage.getItem('cosmic_crisp_active_farm_id') || DEFAULT_FARM_ID;
   });
 
   const [lang, setLang] = useState<LanguageCode>(() => {
-    const saved = localStorage.getItem('cropnext_lang') as LanguageCode | null;
+    const saved = localStorage.getItem('cosmic_crisp_lang') as LanguageCode | null;
     return saved && ['en', 'es', 'hi', 'fr', 'pt'].includes(saved) ? saved : 'en';
+  });
+  const [unit, setUnit] = useState<UnitSystem>(() => {
+    const saved = localStorage.getItem('cosmic_crisp_unit_system') as UnitSystem | null;
+    return saved === 'imperial' || saved === 'metric' ? saved : 'metric';
   });
 
   const [activeTab, setActiveTab] = useState<NavTab>('overview');
@@ -145,18 +146,11 @@ export default function App() {
   );
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
-  const [geospatial, setGeospatial] =
-    useState<GeospatialIngestionPayload | null>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<AiAgronomyAnalysis | null>(null);
-  const [loadingGeospatial, setLoadingGeospatial] = useState(false);
-  const [loadingAi, setLoadingAi] = useState(false);
-  const [geospatialError, setGeospatialError] = useState<string | null>(null);
-
   const hydratedRef = useRef(false);
 
   const applyFarmRecordToState = useCallback((farm: FarmProfileRecord) => {
     setActiveFarmId(farm.id);
-    localStorage.setItem('cropnext_active_farm_id', farm.id);
+    localStorage.setItem('cosmic_crisp_active_farm_id', farm.id);
     setSelectedLocation(farm.location);
     setCurrentCropId(farm.settings.currentCropId);
     setHarvestMonth(farm.settings.harvestMonth);
@@ -168,7 +162,11 @@ export default function App() {
     setOwnedEquipment(farm.settings.ownedEquipment);
     setPrioritizeOwnedEquipment(farm.settings.prioritizeOwnedEquipment);
     setLang(farm.settings.lang);
-    localStorage.setItem('cropnext_lang', farm.settings.lang);
+    localStorage.setItem('cosmic_crisp_lang', farm.settings.lang);
+    if (farm.settings.unitSystem === 'metric' || farm.settings.unitSystem === 'imperial') {
+      setUnit(farm.settings.unitSystem);
+      localStorage.setItem('cosmic_crisp_unit_system', farm.settings.unitSystem);
+    }
     setThresholds(farm.alertThresholds);
     setHarvestLogs(farm.harvestLogs);
     setAlertHistory(farm.alertHistory);
@@ -299,6 +297,7 @@ export default function App() {
           ownedEquipment,
           prioritizeOwnedEquipment,
           lang,
+          unitSystem: unit,
         },
         alertThresholds: thresholds,
         harvestLogs,
@@ -319,6 +318,7 @@ export default function App() {
       ownedEquipment,
       prioritizeOwnedEquipment,
       lang,
+      unit,
       thresholds,
       harvestLogs,
       alertHistory,
@@ -390,8 +390,14 @@ export default function App() {
 
   const handleChangeLang = (next: LanguageCode) => {
     setLang(next);
-    localStorage.setItem('cropnext_lang', next);
+    localStorage.setItem('cosmic_crisp_lang', next);
     void persistSettingsPatch({lang: next});
+  };
+
+  const handleChangeUnit = (next: UnitSystem) => {
+    setUnit(next);
+    localStorage.setItem('cosmic_crisp_unit_system', next);
+    void persistSettingsPatch({unitSystem: next});
   };
 
   const handleChangeCurrentCrop = (cropId: string) => {
@@ -443,69 +449,7 @@ export default function App() {
   const handleSelectLocation = (loc: LocationOption) => {
     setSlopeOverridden(false);
     setSelectedLocation(loc);
-    setGeospatial(null);
-    setAiAnalysis(null);
-    setGeospatialError(null);
     void persistSettingsPatch({location: loc});
-  };
-
-  const handleRunGeospatialIngest = async (
-    bbox?: [number, number, number, number]
-  ) => {
-    const loc = bundle?.location ?? selectedLocation;
-    setLoadingGeospatial(true);
-    setGeospatialError(null);
-    try {
-      const payload = await ingestGeospatialApi({
-        lat: loc.lat,
-        lon: loc.lon,
-        bbox,
-      });
-      setGeospatial(payload);
-    } catch (err) {
-      setGeospatialError(
-        err instanceof Error ? err.message : 'Failed to stream xarray layers'
-      );
-    } finally {
-      setLoadingGeospatial(false);
-    }
-  };
-
-  const handleRunAiAnalysis = async (
-    bbox?: [number, number, number, number]
-  ) => {
-    const loc = bundle?.location ?? selectedLocation;
-    setLoadingAi(true);
-    setGeospatialError(null);
-    try {
-      const res = await analyzeWithAiApi({
-        farmId: activeFarmId,
-        lat: loc.lat,
-        lon: loc.lon,
-        bbox,
-        locationName: loc.name,
-        lang,
-        bundle: bundle ?? undefined,
-        geospatial: geospatial ?? undefined,
-        farmerInputs: {
-          currentCropId,
-          harvestMonth,
-          areaAcres,
-          waterAvailability,
-          laborAvailability,
-          slopeClass,
-          ownedEquipment,
-        },
-      });
-      setGeospatial(res.geospatial);
-      setAiAnalysis(res.analysis);
-    } catch (err) {
-      setGeospatialError(
-        err instanceof Error ? err.message : 'AI analysis failed'
-      );
-    } finally {
-      setLoadingAi(false);
-    }
   };
 
   // Load live satellite/soil/DEM insights for selected location
@@ -608,9 +552,9 @@ export default function App() {
 
   // Server-side validated statistical prediction & hazard evaluation when online
   useEffect(() => {
+    setServerPredictions(null);
+    setServerAlerts(null);
     if (!bundle || isOfflineActive) {
-      setServerPredictions(null);
-      setServerAlerts(null);
       return;
     }
 
@@ -922,6 +866,8 @@ export default function App() {
         bundle={bundle}
         lang={lang}
         onChangeLang={handleChangeLang}
+        unit={unit}
+        onChangeUnit={handleChangeUnit}
         isOfflineActive={isOfflineActive}
         simulateOffline={simulateOffline}
         onToggleSimulateOffline={() => setSimulateOffline((v) => !v)}
@@ -940,6 +886,7 @@ export default function App() {
         {activeTab === 'overview' && (
           <OverviewDashboard
             lang={lang}
+            unit={unit}
             bundle={bundle}
             loading={loadingInsights}
             isOfflineActive={isOfflineActive}
@@ -966,19 +913,13 @@ export default function App() {
             onGoToAlerts={() => setActiveTab('alerts')}
             onGoToLog={() => setActiveTab('log')}
             onLogPlannedCycle={handleLogPlannedCycle}
-            geospatial={geospatial}
-            aiAnalysis={aiAnalysis}
-            loadingGeospatial={loadingGeospatial}
-            loadingAi={loadingAi}
-            geospatialError={geospatialError}
-            onRunGeospatialIngest={(bbox) => void handleRunGeospatialIngest(bbox)}
-            onRunAiAnalysis={(bbox) => void handleRunAiAnalysis(bbox)}
           />
         )}
 
         {activeTab === 'climate' && (
           <ClimateAnalyticsView
             lang={lang}
+            unit={unit}
             bundle={bundle}
             activeFarmId={activeFarmId}
             isOfflineActive={isOfflineActive}
@@ -999,6 +940,7 @@ export default function App() {
         {activeTab === 'alerts' && (
           <AlertsAndOfflineView
             lang={lang}
+            unit={unit}
             alerts={alerts}
             thresholds={thresholds}
             onUpdateThresholds={handleUpdateThresholds}
@@ -1016,6 +958,7 @@ export default function App() {
         {activeTab === 'log' && (
           <FarmLogView
             lang={lang}
+            unit={unit}
             bundle={bundle}
             logs={harvestLogs}
             onAddLog={handleAddHarvestLog}

@@ -14,8 +14,8 @@ export default defineConfig(() => {
         includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
         manifest: {
           id: '/',
-          name: 'CropNext — Global Crop Rotation & Yield Advisor',
-          short_name: 'CropNext',
+          name: 'Cosmic Crisp — Global Crop Rotation & Yield Advisor',
+          short_name: 'Cosmic Crisp',
           description:
             'Predict your next crop using NASA satellite weather, SoilGrids soil health, and USDA agronomic models with full offline access.',
           theme_color: '#15803D',
@@ -79,7 +79,7 @@ export default defineConfig(() => {
               urlPattern: /\/api\/(farm-insights|geocode)/i,
               handler: 'NetworkFirst',
               options: {
-                cacheName: 'cropnext-api-cache',
+                cacheName: 'cosmic-crisp-api-cache',
                 networkTimeoutSeconds: 4,
                 expiration: {
                   maxEntries: 40,

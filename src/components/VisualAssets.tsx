@@ -1,5 +1,6 @@
 import {Sprout} from 'lucide-react';
 import {useState} from 'react';
+import {ECOCROP_BY_ID} from '../data/ecoCrop';
 import cropGrainImg from '../assets/images/crop_grain_fields_1794707225601.jpg';
 import cropLegumeImg from '../assets/images/crop_legume_soy_1794707225412.jpg';
 import cropSpecialtyImg from '../assets/images/crop_specialty_harvest_1794707226671.jpg';
@@ -15,6 +16,19 @@ export const VISUAL_ASSETS = {
 };
 
 export function getCropPhoto(cropId: string): string {
+  const eco = ECOCROP_BY_ID[cropId];
+  const cat = eco?.CAT;
+  if (cat === 'Legumes' || cat === 'Forage & Cover Crops') {
+    return cropLegumeImg;
+  }
+  if (
+    cat === 'Oilseeds & Fiber' ||
+    cat === 'Tubers & Roots' ||
+    cat === 'Vegetables & Specialty' ||
+    cat === 'Fruits & Orchards'
+  ) {
+    return cropSpecialtyImg;
+  }
   if (['soybeans', 'chickpeas', 'alfalfa'].includes(cropId)) {
     return cropLegumeImg;
   }

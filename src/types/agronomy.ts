@@ -1,8 +1,19 @@
 export type LanguageCode = 'en' | 'es' | 'hi' | 'fr' | 'pt';
+export type UnitSystem = 'metric' | 'imperial';
 
 export type NavTab = 'overview' | 'climate' | 'alerts' | 'log';
 
-export type CropFamily = 'grass' | 'legume' | 'broadleaf' | 'brassica' | 'root';
+export type CropFamily =
+  | 'grass'
+  | 'legume'
+  | 'broadleaf'
+  | 'brassica'
+  | 'root'
+  | 'solanaceae'
+  | 'cucurbit'
+  | 'allium'
+  | 'orchard'
+  | 'forage';
 
 export type WaterAvailability = 'rainfed' | 'limited' | 'full';
 export type LaborAvailability = 'low' | 'moderate' | 'high';
@@ -28,6 +39,8 @@ export interface LocationOption {
   climateZone: string;
   usdaZone: string;
   traditionalCrops?: string[];
+  regionalSource?: 'usda_cropscape' | 'agro_biome_matrix';
+  regionalZoneLabel?: string;
 }
 
 export interface SoilDepthLayer {
@@ -76,14 +89,36 @@ export interface DailyForecastPoint {
   tempMaxC: number;
   precipMm: number;
   et0Mm: number;
+  weatherCode?: number;
+  precipProbPct?: number;
+  windMaxKmh?: number;
+  uvIndexMax?: number;
+  sunrise?: string;
+  sunset?: string;
+}
+
+export interface CurrentWeatherSnapshot {
+  tempC: number;
+  apparentTempC: number;
+  humidityPct: number;
+  precipMm: number;
+  windKmh: number;
+  weatherCode: number;
+  observedAt: string;
+  timezone: string;
 }
 
 export interface CropSpec {
   id: string;
   family: CropFamily;
+  category?: string;
+  scientificName?: string;
+  commonName?: string;
+  lifeForm?: string;
   nitrogenBalanceKgHa: number;
   optimalPh: [number, number];
   optimalTempC: [number, number];
+  absTempC?: [number, number];
   waterNeedMm: number;
   growingDays: number;
   baseYieldTHa: number;
@@ -120,6 +155,8 @@ export interface CropPrediction {
   waterMatchPct: number;
   diseaseBreakRating: 'high' | 'moderate' | 'low';
   isTraditionalRegional: boolean;
+  regionalRank?: number | null;
+  regionalPrevalenceScore?: number;
   estGrossRevenueUsdHa: number;
   estNetMarginUsdHa: number;
   roiPct: number;
@@ -187,6 +224,7 @@ export interface FarmInsightBundle {
   monthlyClimate: MonthlyClimatePoint[];
   yearlyAnomalies: YearlyAnomalyPoint[];
   forecast16d: DailyForecastPoint[];
+  currentWeather?: CurrentWeatherSnapshot;
 }
 
 export interface CachedFarmPack {
@@ -227,6 +265,7 @@ export interface FarmSettings {
   ownedEquipment: EquipmentId[];
   prioritizeOwnedEquipment: boolean;
   lang: LanguageCode;
+  unitSystem?: UnitSystem;
 }
 
 export interface FarmProfileRecord {

@@ -8,6 +8,14 @@ import {
 } from 'lucide-react';
 import {t, type TranslationKey} from '../i18n/translations';
 import type {PushPermissionState} from '../lib/notifications';
+import {
+  cToF,
+  fToC,
+  formatAlertMetricValue,
+  inToMm,
+  mmToIn,
+  type UnitSystem,
+} from '../lib/units';
 import type {
   AlertThresholds,
   CachedFarmPack,
@@ -18,6 +26,7 @@ import type {
 
 interface AlertsAndOfflineViewProps {
   lang: LanguageCode;
+  unit: UnitSystem;
   alerts: WeatherAlert[];
   thresholds: AlertThresholds;
   onUpdateThresholds: (next: AlertThresholds) => void;
@@ -33,6 +42,7 @@ interface AlertsAndOfflineViewProps {
 
 export function AlertsAndOfflineView({
   lang,
+  unit,
   alerts,
   thresholds,
   onUpdateThresholds,
@@ -150,18 +160,26 @@ export function AlertsAndOfflineView({
                 htmlFor="thresh-frost"
                 className="block text-xs font-semibold text-[#334155] mb-1.5"
               >
-                {t(lang, 'thresh_frost')}
+                {unit === 'imperial'
+                  ? 'Frost Warning Below (°F)'
+                  : t(lang, 'thresh_frost')}
               </label>
               <input
                 id="thresh-frost"
                 type="number"
-                value={thresholds.frostTempC}
-                onChange={(e) =>
+                value={
+                  unit === 'imperial'
+                    ? Math.round(cToF(thresholds.frostTempC))
+                    : thresholds.frostTempC
+                }
+                onChange={(e) => {
+                  const val = Number(e.target.value);
                   onUpdateThresholds({
                     ...thresholds,
-                    frostTempC: Number(e.target.value),
-                  })
-                }
+                    frostTempC:
+                      unit === 'imperial' ? Number(fToC(val).toFixed(1)) : val,
+                  });
+                }}
                 className="w-full min-h-[44px] rounded-lg border border-[#CBD5E1] px-3 font-mono-tabular text-sm text-[#0F172A]"
               />
             </div>
@@ -171,18 +189,26 @@ export function AlertsAndOfflineView({
                 htmlFor="thresh-heat"
                 className="block text-xs font-semibold text-[#334155] mb-1.5"
               >
-                {t(lang, 'thresh_heat')}
+                {unit === 'imperial'
+                  ? 'Heat Stress Above (°F)'
+                  : t(lang, 'thresh_heat')}
               </label>
               <input
                 id="thresh-heat"
                 type="number"
-                value={thresholds.heatTempC}
-                onChange={(e) =>
+                value={
+                  unit === 'imperial'
+                    ? Math.round(cToF(thresholds.heatTempC))
+                    : thresholds.heatTempC
+                }
+                onChange={(e) => {
+                  const val = Number(e.target.value);
                   onUpdateThresholds({
                     ...thresholds,
-                    heatTempC: Number(e.target.value),
-                  })
-                }
+                    heatTempC:
+                      unit === 'imperial' ? Number(fToC(val).toFixed(1)) : val,
+                  });
+                }}
                 className="w-full min-h-[44px] rounded-lg border border-[#CBD5E1] px-3 font-mono-tabular text-sm text-[#0F172A]"
               />
             </div>
@@ -213,18 +239,27 @@ export function AlertsAndOfflineView({
                 htmlFor="thresh-rain"
                 className="block text-xs font-semibold text-[#334155] mb-1.5"
               >
-                {t(lang, 'thresh_rain')}
+                {unit === 'imperial'
+                  ? 'Heavy Rain Above (in/day)'
+                  : t(lang, 'thresh_rain')}
               </label>
               <input
                 id="thresh-rain"
                 type="number"
-                value={thresholds.heavyRainMm}
-                onChange={(e) =>
+                step={unit === 'imperial' ? '0.1' : '1'}
+                value={
+                  unit === 'imperial'
+                    ? Number(mmToIn(thresholds.heavyRainMm).toFixed(1))
+                    : thresholds.heavyRainMm
+                }
+                onChange={(e) => {
+                  const val = Number(e.target.value);
                   onUpdateThresholds({
                     ...thresholds,
-                    heavyRainMm: Number(e.target.value),
-                  })
-                }
+                    heavyRainMm:
+                      unit === 'imperial' ? Math.round(inToMm(val)) : val,
+                  });
+                }}
                 className="w-full min-h-[44px] rounded-lg border border-[#CBD5E1] px-3 font-mono-tabular text-sm text-[#0F172A]"
               />
             </div>
@@ -269,7 +304,7 @@ export function AlertsAndOfflineView({
                     </span>
                   </div>
                   <span className="font-mono-tabular text-xs font-bold text-[#0F172A]">
-                    {alert.metricValue} · {alert.date}
+                    {formatAlertMetricValue(alert.metricValue, unit)} · {alert.date}
                   </span>
                 </div>
                 <p className="mt-2 text-sm text-[#334155]">

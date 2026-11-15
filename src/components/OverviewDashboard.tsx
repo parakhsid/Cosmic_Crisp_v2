@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronUp,
   Droplets,
+  Globe,
   History,
   MapPin,
   Mountain,
@@ -17,9 +18,13 @@ import {
 import {useEffect, useState} from 'react';
 import {
   ALL_EQUIPMENT_IDS,
-  CROP_SPECS,
   GLOBAL_FARM_HUBS,
+  makeLocationKey,
 } from '../data/cropsAndLocations';
+import {
+  ECOCROP_BY_ID,
+  ECOCROP_CATEGORY_LABEL_KEYS,
+} from '../data/ecoCrop';
 import {
   cropLabel,
   equipmentLabel,
@@ -27,12 +32,20 @@ import {
   t,
   type TranslationKey,
 } from '../i18n/translations';
+import {
+  acresToHa,
+  formatAlertMetricValue,
+  formatElevation,
+  formatMarginPerArea,
+  formatNitrogenDelta,
+  haToAcres,
+  tHaToTonsAc,
+  type UnitSystem,
+} from '../lib/units';
 import type {
-  AiAgronomyAnalysis,
   CropPrediction,
   EquipmentId,
   FarmInsightBundle,
-  GeospatialIngestionPayload,
   LaborAvailability,
   LanguageCode,
   LocationOption,
@@ -45,7 +58,8 @@ import {
   Forecast16DayStrip,
   MonthlyClimateChart,
 } from './Charts';
-import {GeospatialAiPanel} from './GeospatialAiPanel';
+import {CropSelectorDropdown} from './CropSelectorDropdown';
+import {EcoCropExplorer} from './EcoCropExplorer';
 import {
   CircularGauge,
   getCropPhoto,
@@ -55,6 +69,7 @@ import {
 
 interface OverviewDashboardProps {
   lang: LanguageCode;
+  unit: UnitSystem;
   bundle: FarmInsightBundle | null;
   loading: boolean;
   isOfflineActive: boolean;
@@ -81,17 +96,11 @@ interface OverviewDashboardProps {
   onGoToAlerts: () => void;
   onGoToLog: () => void;
   onLogPlannedCycle: (cropId: string) => void;
-  geospatial: GeospatialIngestionPayload | null;
-  aiAnalysis: AiAgronomyAnalysis | null;
-  loadingGeospatial: boolean;
-  loadingAi: boolean;
-  geospatialError: string | null;
-  onRunGeospatialIngest: (bbox?: [number, number, number, number]) => void;
-  onRunAiAnalysis: (bbox?: [number, number, number, number]) => void;
 }
 
 export function OverviewDashboard({
   lang,
+  unit,
   bundle,
   loading,
   isOfflineActive,
@@ -118,13 +127,6 @@ export function OverviewDashboard({
   onGoToAlerts,
   onGoToLog,
   onLogPlannedCycle,
-  geospatial,
-  aiAnalysis,
-  loadingGeospatial,
-  loadingAi,
-  geospatialError,
-  onRunGeospatialIngest,
-  onRunAiAnalysis,
 }: OverviewDashboardProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<LocationOption[]>([]);
@@ -134,21 +136,76 @@ export function OverviewDashboard({
   const [loggedToast, setLoggedToast] = useState(false);
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [showDetailedScores, setShowDetailedScores] = useState(false);
+  const [showCoordEntry, setShowCoordEntry] = useState(false);
+  const [coordLatInput, setCoordLatInput] = useState('35.6762');
+  const [coordLonInput, setCoordLonInput] = useState('139.6503');
+  const [coordError, setCoordError] = useState<string | null>(null);
+
+  const parseCoordsInput = (
+    raw: string
+  ): {lat: number; lon: number} | null => {
+    const cleaned = raw.trim().replace(/[°]/g, '');
+    const m = cleaned.match(/^(-?\d+(?:\.\d+)?)\s*[,;\s]+\s*(-?\d+(?:\.\d+)?)$/);
+    if (!m) return null;
+    const lat = Number(m[1]);
+    const lon = Number(m[2]);
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon) ||
+      lat < -90 ||
+      lat > 90 ||
+      lon < -180 ||
+      lon > 180
+    ) {
+      return null;
+    }
+    return {lat, lon};
+  };
+
+  const buildCoordLocation = (lat: number, lon: number): LocationOption => ({
+    id: makeLocationKey(lat, lon),
+    name: `Coordinates (${lat.toFixed(3)}, ${lon.toFixed(3)})`,
+    region: `${lat >= 0 ? 'N' : 'S'} ${Math.abs(lat).toFixed(2)}°, ${
+      lon >= 0 ? 'E' : 'W'
+    } ${Math.abs(lon).toFixed(2)}°`,
+    country: 'Global Grid',
+    lat,
+    lon,
+    climateZone: 'Global Coordinates',
+    usdaZone: '7a',
+  });
 
   const topPrediction = predictions[0];
   const activePrediction =
-    predictions.find((p) => p.cropId === inspectedCropId) ?? topPrediction;
+    (inspectedCropId
+      ? predictions.find((p) => p.cropId === inspectedCropId)
+      : undefined) ?? topPrediction;
 
   useEffect(() => {
-    if (topPrediction && !inspectedCropId) {
-      setInspectedCropId(topPrediction.cropId);
-    }
-  }, [topPrediction, inspectedCropId]);
+    setInspectedCropId('');
+  }, [
+    bundle?.location.id,
+    currentCropId,
+    harvestMonth,
+    areaAcres,
+    waterAvailability,
+    laborAvailability,
+    slopeClass,
+    ownedEquipment,
+    prioritizeOwnedEquipment,
+    recentHistoryCropIds,
+  ]);
 
   useEffect(() => {
     const q = searchQuery.trim();
     if (q.length < 2) {
       setSearchResults([]);
+      return;
+    }
+
+    const parsedCoords = parseCoordsInput(q);
+    if (parsedCoords) {
+      setSearchResults([buildCoordLocation(parsedCoords.lat, parsedCoords.lon)]);
       return;
     }
 
@@ -217,8 +274,10 @@ export function OverviewDashboard({
               <h1 className="mt-1 font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white text-balance">
                 {activePrediction
                   ? `${cropLabel(lang, activePrediction.cropId)} — ${
-                      activePrediction.expectedYieldTHa
-                    } t/ha`
+                      unit === 'imperial'
+                        ? `${activePrediction.expectedYieldBuAc} bu/ac`
+                        : `${activePrediction.expectedYieldTHa} t/ha`
+                    }`
                   : t(lang, 'top_rec_kicker')}
               </h1>
             </div>
@@ -271,7 +330,7 @@ export function OverviewDashboard({
                 {t(lang, criticalAlert.titleKey as TranslationKey)}
               </span>{' '}
               <span className="font-mono-tabular font-semibold">
-                ({criticalAlert.metricValue})
+                ({formatAlertMetricValue(criticalAlert.metricValue, unit)})
               </span>{' '}
               <span className="text-[#334155]">
                 — {t(lang, criticalAlert.actionKey as TranslationKey)}
@@ -297,14 +356,31 @@ export function OverviewDashboard({
               {t(lang, 'inputs_title')}
             </h2>
 
-            {/* Location Search */}
+            {/* Location Search (Any City, Village, or Lat/Lon on Earth) */}
             <div className="relative">
-              <label
-                htmlFor="farm-location-search"
-                className="block text-xs font-semibold text-[#334155] mb-1.5"
-              >
-                {t(lang, 'label_location')}
-              </label>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <label
+                  htmlFor="farm-location-search"
+                  className="block text-xs font-semibold text-[#334155]"
+                >
+                  {t(lang, 'label_location')}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (bundle) {
+                      setCoordLatInput(bundle.location.lat.toFixed(4));
+                      setCoordLonInput(bundle.location.lon.toFixed(4));
+                    }
+                    setCoordError(null);
+                    setShowCoordEntry((v) => !v);
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#15803D] hover:underline cursor-pointer"
+                >
+                  <Globe className="h-3 w-3" aria-hidden="true" />
+                  {showCoordEntry ? 'Hide Lat/Lon' : 'Enter Lat/Lon'}
+                </button>
+              </div>
               <div className="relative">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
@@ -315,6 +391,14 @@ export function OverviewDashboard({
                   type="text"
                   value={searchQuery}
                   onFocus={() => setShowDropdown(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && searchResults.length > 0) {
+                      e.preventDefault();
+                      onSelectLocation(searchResults[0]);
+                      setSearchQuery('');
+                      setShowDropdown(false);
+                    }
+                  }}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
                     setShowDropdown(true);
@@ -325,6 +409,78 @@ export function OverviewDashboard({
                   className="w-full min-h-[44px] rounded-lg border border-[#CBD5E1] bg-white pl-9 pr-3 text-sm text-[#0F172A] placeholder:text-[#64748B] focus:border-[#15803D] focus:outline-none"
                 />
               </div>
+
+              {showCoordEntry && (
+                <div className="mt-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-2.5 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label
+                        htmlFor="coord-lat"
+                        className="block text-[10px] font-semibold text-[#475569]"
+                      >
+                        Latitude (-90..90)
+                      </label>
+                      <input
+                        id="coord-lat"
+                        type="number"
+                        step="0.0001"
+                        min={-90}
+                        max={90}
+                        value={coordLatInput}
+                        onChange={(e) => setCoordLatInput(e.target.value)}
+                        className="mt-0.5 w-full min-h-[36px] rounded-md border border-[#CBD5E1] bg-white px-2 font-mono-tabular text-xs text-[#0F172A]"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="coord-lon"
+                        className="block text-[10px] font-semibold text-[#475569]"
+                      >
+                        Longitude (-180..180)
+                      </label>
+                      <input
+                        id="coord-lon"
+                        type="number"
+                        step="0.0001"
+                        min={-180}
+                        max={180}
+                        value={coordLonInput}
+                        onChange={(e) => setCoordLonInput(e.target.value)}
+                        className="mt-0.5 w-full min-h-[36px] rounded-md border border-[#CBD5E1] bg-white px-2 font-mono-tabular text-xs text-[#0F172A]"
+                      />
+                    </div>
+                  </div>
+                  {coordError && (
+                    <p className="text-[11px] font-medium text-[#DC2626]">
+                      {coordError}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const lat = Number(coordLatInput);
+                      const lon = Number(coordLonInput);
+                      if (
+                        !Number.isFinite(lat) ||
+                        !Number.isFinite(lon) ||
+                        lat < -90 ||
+                        lat > 90 ||
+                        lon < -180 ||
+                        lon > 180
+                      ) {
+                        setCoordError('Enter valid lat (-90..90) and lon (-180..180).');
+                        return;
+                      }
+                      setCoordError(null);
+                      onSelectLocation(buildCoordLocation(lat, lon));
+                      setShowCoordEntry(false);
+                    }}
+                    className="w-full min-h-[34px] rounded-md bg-[#15803D] px-3 py-1 text-xs font-semibold text-white hover:bg-[#166534] cursor-pointer"
+                  >
+                    Load 10-Day Forecast for Coordinates
+                  </button>
+                </div>
+              )}
 
               {showDropdown && searchResults.length > 0 && (
                 <ul
@@ -380,7 +536,7 @@ export function OverviewDashboard({
               })}
             </div>
 
-            {/* Current Crop */}
+            {/* Current Crop (Grouped by EcoCrop Category) */}
             <div>
               <label
                 htmlFor="current-crop-select"
@@ -388,21 +544,15 @@ export function OverviewDashboard({
               >
                 {t(lang, 'label_current_crop')}
               </label>
-              <select
+              <CropSelectorDropdown
                 id="current-crop-select"
+                lang={lang}
                 value={currentCropId}
-                onChange={(e) => {
-                  onChangeCurrentCrop(e.target.value);
+                onChange={(cropId) => {
+                  onChangeCurrentCrop(cropId);
                   setInspectedCropId('');
                 }}
-                className="w-full min-h-[44px] rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-medium text-[#0F172A] focus:border-[#15803D] focus:outline-none"
-              >
-                {CROP_SPECS.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {cropLabel(lang, c.id)}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             {/* Harvest Month & Acres */}
@@ -433,17 +583,26 @@ export function OverviewDashboard({
                   htmlFor="field-area-input"
                   className="block text-xs font-semibold text-[#334155] mb-1.5"
                 >
-                  {t(lang, 'label_field_area')}
+                  {unit === 'metric'
+                    ? t(lang, 'label_field_area_ha')
+                    : t(lang, 'label_field_area')}
                 </label>
                 <input
                   id="field-area-input"
                   type="number"
                   min={1}
                   max={50000}
-                  value={areaAcres}
-                  onChange={(e) =>
-                    onChangeAreaAcres(Math.max(1, Number(e.target.value) || 1))
+                  value={
+                    unit === 'metric'
+                      ? Math.max(1, Math.round(acresToHa(areaAcres)))
+                      : Math.round(areaAcres)
                   }
+                  onChange={(e) => {
+                    const val = Math.max(1, Number(e.target.value) || 1);
+                    onChangeAreaAcres(
+                      unit === 'metric' ? Math.max(1, Math.round(haToAcres(val))) : val
+                    );
+                  }}
                   className="w-full min-h-[44px] rounded-lg border border-[#CBD5E1] bg-white px-3 font-mono-tabular text-sm text-[#0F172A] focus:border-[#15803D] focus:outline-none"
                 />
               </div>
@@ -644,7 +803,8 @@ export function OverviewDashboard({
                   <div>
                     <dt className="text-[#64748B]">{t(lang, 'metric_slope')}</dt>
                     <dd className="mt-0.5 font-mono-tabular text-sm font-bold text-[#0F172A]">
-                      {bundle.currentSnapshot.slopePct ?? 1.2}% ({bundle.currentSnapshot.elevationM ?? 220}m)
+                      {bundle.currentSnapshot.slopePct ?? 1.2}% (
+                      {formatElevation(bundle.currentSnapshot.elevationM ?? 220, unit)})
                     </dd>
                   </div>
                   <div>
@@ -673,7 +833,10 @@ export function OverviewDashboard({
 
         {/* Right Column: Visual Crop Recommendation Hero & Charts */}
         <section className="lg:col-span-8 space-y-6">
-          <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
+          <div
+            id="hero-recommendation-card"
+            className="rounded-xl border border-[#E2E8F0] bg-white p-6"
+          >
             {loading || !activePrediction ? (
               <div className="space-y-4 animate-pulse">
                 <div className="h-6 w-48 rounded bg-[#F1F5F9]" />
@@ -691,17 +854,49 @@ export function OverviewDashboard({
                         className="h-24 w-32 shrink-0 rounded-lg border border-[#E2E8F0]"
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-[#15803D]">
-                          <Sprout className="h-3.5 w-3.5" aria-hidden="true" />
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-[#15803D]">
+                          <Sprout className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                           <span>{t(lang, 'top_rec_kicker')}</span>
+                          {ECOCROP_BY_ID[activePrediction.cropId] && (
+                            <span className="font-normal text-[#64748B]">
+                              ·{' '}
+                              {t(
+                                lang,
+                                ECOCROP_CATEGORY_LABEL_KEYS[
+                                  ECOCROP_BY_ID[activePrediction.cropId].CAT
+                                ] as TranslationKey
+                              )}
+                            </span>
+                          )}
+                          {topPrediction &&
+                            activePrediction.cropId !== topPrediction.cropId && (
+                              <button
+                                type="button"
+                                onClick={() => setInspectedCropId('')}
+                                className="ml-1 font-semibold text-[#0284C7] hover:underline cursor-pointer"
+                              >
+                                · Reset to #1 ({cropLabel(lang, topPrediction.cropId)})
+                              </button>
+                            )}
                         </div>
                         <h2 className="mt-1 font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-[#0F172A]">
                           {cropLabel(lang, activePrediction.cropId)}
                         </h2>
+                        {ECOCROP_BY_ID[activePrediction.cropId] && (
+                          <p className="mt-0.5 text-xs italic text-[#64748B]">
+                            {ECOCROP_BY_ID[activePrediction.cropId].ScientificName}
+                            {bundle?.location.regionalZoneLabel
+                              ? ` · ${bundle.location.regionalZoneLabel}`
+                              : ''}
+                          </p>
+                        )}
                         <p className="mt-1 text-xs font-medium text-[#475569]">
                           {activePrediction.isTraditionalRegional
                             ? t(lang, 'regional_fit_traditional')
                             : t(lang, 'regional_fit_emerging')}{' '}
+                          {bundle?.location.regionalSource === 'usda_cropscape'
+                            ? '(USDA CropScape)'
+                            : ''}{' '}
                           ·{' '}
                           <span
                             className={
@@ -737,10 +932,14 @@ export function OverviewDashboard({
                           {t(lang, 'expected_yield')}
                         </div>
                         <div className="mt-0.5 font-mono-tabular text-lg font-bold text-[#0F172A]">
-                          {activePrediction.expectedYieldTHa} t/ha
+                          {unit === 'imperial'
+                            ? `${activePrediction.expectedYieldBuAc} bu/ac`
+                            : `${activePrediction.expectedYieldTHa} t/ha`}
                         </div>
                         <div className="font-mono-tabular text-[11px] text-[#64748B]">
-                          {activePrediction.expectedYieldBuAc} bu/ac
+                          {unit === 'imperial'
+                            ? `${tHaToTonsAc(activePrediction.expectedYieldTHa).toFixed(2)} tons/ac`
+                            : `${activePrediction.expectedYieldBuAc} bu/ac`}
                         </div>
                       </div>
 
@@ -755,10 +954,7 @@ export function OverviewDashboard({
                               : 'text-[#DC2626]'
                           }`}
                         >
-                          {activePrediction.estNetMarginUsdHa >= 0
-                            ? `+$${activePrediction.estNetMarginUsdHa}`
-                            : `-$${Math.abs(activePrediction.estNetMarginUsdHa)}`}
-                          /ha
+                          {formatMarginPerArea(activePrediction.estNetMarginUsdHa, unit)}
                         </div>
                         <div className="font-mono-tabular text-[11px] font-semibold text-[#475569]">
                           {t(lang, 'metric_roi')} {activePrediction.roiPct}% ·{' '}
@@ -813,7 +1009,9 @@ export function OverviewDashboard({
                             : t(lang, 'labor_stretch')}
                         </div>
                         <div className="font-mono-tabular text-[11px] text-[#64748B]">
-                          {activePrediction.laborHoursPerHa} h/ha
+                          {unit === 'imperial'
+                            ? `${(activePrediction.laborHoursPerHa * 0.404686).toFixed(1)} h/ac`
+                            : `${activePrediction.laborHoursPerHa} h/ha`}
                         </div>
                       </div>
 
@@ -833,11 +1031,8 @@ export function OverviewDashboard({
                             : t(lang, 'slope_risk')}
                         </div>
                         <div className="font-mono-tabular text-[11px] text-[#64748B]">
-                          N{' '}
-                          {activePrediction.nitrogenDeltaKgHa > 0
-                            ? `+${activePrediction.nitrogenDeltaKgHa}`
-                            : activePrediction.nitrogenDeltaKgHa}{' '}
-                          kg/ha · {activePrediction.waterMatchPct}% H₂O
+                          N {formatNitrogenDelta(activePrediction.nitrogenDeltaKgHa, unit)} ·{' '}
+                          {activePrediction.waterMatchPct}% H₂O
                         </div>
                       </div>
                     </div>
@@ -999,6 +1194,7 @@ export function OverviewDashboard({
                   <CandidateComparisonChart
                     predictions={predictions}
                     lang={lang}
+                    unit={unit}
                     selectedCropId={activePrediction.cropId}
                     onSelectCandidate={(id) => setInspectedCropId(id)}
                   />
@@ -1007,18 +1203,39 @@ export function OverviewDashboard({
             )}
           </div>
 
-          {/* 8-Day Visual Weather Strip */}
+          {/* 10-Day Open-Meteo Global Weather Forecast */}
           {bundle && (
             <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <h2 className="font-display text-base font-bold text-[#0F172A]">
-                  {t(lang, 'active_alerts_title')}
-                </h2>
-                <span className="font-mono-tabular text-xs text-[#64748B]">
-                  Open-Meteo 8-Day Window
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div>
+                  <h2 className="font-display text-base font-bold text-[#0F172A]">
+                    {t(lang, 'weather_10d_title')}
+                  </h2>
+                  <p className="text-xs text-[#64748B]">
+                    {bundle.location.name} ·{' '}
+                    <span className="font-mono-tabular">
+                      {bundle.location.lat.toFixed(3)}°,{' '}
+                      {bundle.location.lon.toFixed(3)}°
+                    </span>
+                  </p>
+                </div>
+                <span
+                  className={`font-mono-tabular text-xs font-semibold ${
+                    bundle.dataSources.forecast === 'live'
+                      ? 'text-[#15803D]'
+                      : 'text-[#B45309]'
+                  }`}
+                >
+                  {bundle.dataSources.forecast === 'live'
+                    ? 'Open-Meteo Live · 10-Day'
+                    : 'Regional Benchmark · 10-Day'}
                 </span>
               </div>
-              <Forecast16DayStrip forecast={bundle.forecast16d} />
+              <Forecast16DayStrip
+                forecast={bundle.forecast16d}
+                currentWeather={bundle.currentWeather}
+                unit={unit}
+              />
             </div>
           )}
 
@@ -1030,27 +1247,30 @@ export function OverviewDashboard({
             {loading || !bundle ? (
               <div className="h-52 rounded-lg bg-[#F1F5F9] animate-pulse" />
             ) : (
-              <MonthlyClimateChart data={bundle.monthlyClimate} lang={lang} />
+              <MonthlyClimateChart
+                data={bundle.monthlyClimate}
+                lang={lang}
+                unit={unit}
+              />
             )}
           </div>
         </section>
       </div>
 
-      {/* Python In-Memory xarray Ingestion & Gemini AI Agronomy Analysis */}
-      {bundle && (
-        <GeospatialAiPanel
+      {/* Full 80+ Species FAO EcoCrop Compatibility & Future Rotation Explorer */}
+      {bundle && predictions.length > 0 && (
+        <EcoCropExplorer
           lang={lang}
-          lat={bundle.location.lat}
-          lon={bundle.location.lon}
-          locationName={bundle.location.name}
-          isOfflineActive={isOfflineActive}
-          geospatial={geospatial}
-          analysis={aiAnalysis}
-          loadingIngest={loadingGeospatial}
-          loadingAi={loadingAi}
-          error={geospatialError}
-          onRunIngestOnly={onRunGeospatialIngest}
-          onRunAiAnalysis={onRunAiAnalysis}
+          unit={unit}
+          bundle={bundle}
+          predictions={predictions}
+          selectedCropId={activePrediction?.cropId ?? ''}
+          onSelectCrop={(cropId) => {
+            setInspectedCropId(cropId);
+            document
+              .getElementById('hero-recommendation-card')
+              ?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+          }}
         />
       )}
 

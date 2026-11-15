@@ -1,7 +1,7 @@
 import {
   CROP_SPECS,
   DEFAULT_OWNED_EQUIPMENT,
-  inferTraditionalRegionalCrops,
+  inferRegionalCropProfile,
 } from '../data/cropsAndLocations';
 import type {
   AlertThresholds,
@@ -20,33 +20,73 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-function scoreRange(value: number, [low, high]: [number, number], tolerance: number): number {
+function scoreRange(
+  value: number,
+  [low, high]: [number, number],
+  tolerance: number
+): number {
   if (value >= low && value <= high) return 100;
   const dist = value < low ? low - value : value - high;
-  return clamp(Math.round(100 - (dist / tolerance) * 65), 18, 99);
+  return clamp(Math.round(100 - (dist / tolerance) * 72), 10, 99);
 }
 
-function getPostHarvestWindow(
+interface WindowClimate {
+  avgTempC: number;
+  totalPrecipMm: number;
+  avgWetnessPct: number;
+  avgHumidityPct: number;
+  avgSolar: number;
+}
+
+function computeWindowFromStart(
   bundle: FarmInsightBundle,
-  harvestMonth: number,
+  startMonthIdx: number,
   durationMonths = 4
-) {
+): WindowClimate {
   const windowMonths = [];
-  for (let i = 1; i <= durationMonths; i++) {
-    const idx = (harvestMonth + i) % 12;
+  for (let i = 0; i < durationMonths; i++) {
+    const idx = (startMonthIdx + i) % 12;
     windowMonths.push(bundle.monthlyClimate[idx]);
   }
-  const avgTempC =
-    windowMonths.reduce((acc, m) => acc + m.tempC, 0) / windowMonths.length;
-  const totalPrecipMm = windowMonths.reduce((acc, m) => acc + m.precipMm, 0);
-  const avgWetnessPct =
-    windowMonths.reduce((acc, m) => acc + m.rootWetnessPct, 0) / windowMonths.length;
-  const avgHumidityPct =
-    windowMonths.reduce((acc, m) => acc + (m.relativeHumidityPct ?? 62), 0) /
-    windowMonths.length;
-  const avgSolar =
-    windowMonths.reduce((acc, m) => acc + m.solarKwhM2, 0) / windowMonths.length;
-  return {avgTempC, totalPrecipMm, avgWetnessPct, avgHumidityPct, avgSolar};
+  const len = Math.max(1, windowMonths.length);
+  return {
+    avgTempC: windowMonths.reduce((acc, m) => acc + m.tempC, 0) / len,
+    totalPrecipMm: windowMonths.reduce((acc, m) => acc + m.precipMm, 0),
+    avgWetnessPct:
+      windowMonths.reduce((acc, m) => acc + m.rootWetnessPct, 0) / len,
+    avgHumidityPct:
+      windowMonths.reduce((acc, m) => acc + (m.relativeHumidityPct ?? 62), 0) /
+      len,
+    avgSolar: windowMonths.reduce((acc, m) => acc + m.solarKwhM2, 0) / len,
+  };
+}
+
+function selectOptimalWindowForCrop(
+  bundle: FarmInsightBundle,
+  harvestMonth: number,
+  candidate: CropSpec
+): WindowClimate {
+  const immediate = computeWindowFromStart(bundle, (harvestMonth + 1) % 12, 4);
+  const optMidTemp = (candidate.optimalTempC[0] + candidate.optimalTempC[1]) / 2;
+
+  // Evaluate candidate 4-month growing windows across the upcoming year
+  let best = immediate;
+  let bestDelta = Math.abs(immediate.avgTempC - optMidTemp);
+
+  // Cool-season / overwintering crops strongly prefer immediate post-harvest autumn seeding if close
+  const isOverwinter =
+    candidate.optimalTempC[0] <= 12 && candidate.frostTolerance >= 0.65;
+  const maxOffsets = isOverwinter ? [1, 2, 5, 6] : [1, 2, 3, 4, 5, 6, 7, 8];
+
+  for (const offset of maxOffsets) {
+    const win = computeWindowFromStart(bundle, (harvestMonth + offset) % 12, 4);
+    const delta = Math.abs(win.avgTempC - optMidTemp);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      best = win;
+    }
+  }
+  return best;
 }
 
 function computeRotationSynergy(
@@ -63,7 +103,7 @@ function computeRotationSynergy(
 
   if (candidate.id === currentCrop.id) {
     return {
-      score: 24,
+      score: 22,
       diseaseBreak: 'low',
       historyConflict: true,
       reason: 'reason_monocrop_risk',
@@ -71,7 +111,7 @@ function computeRotationSynergy(
   }
   if (repeatedInHistory) {
     return {
-      score: 52,
+      score: 50,
       diseaseBreak: 'moderate',
       historyConflict: true,
       reason: 'reason_history_repeat',
@@ -79,13 +119,13 @@ function computeRotationSynergy(
   }
   if (candidate.family === currentCrop.family) {
     return {
-      score: 48,
+      score: 46,
       diseaseBreak: 'low',
       historyConflict: false,
       reason: 'reason_same_family',
     };
   }
-  if (candidate.family === 'legume' && currentCrop.nitrogenBalanceKgHa < -60) {
+  if (candidate.family === 'legume' && currentCrop.nitrogenBalanceKgHa < -55) {
     return {
       score: 96,
       diseaseBreak: 'high',
@@ -93,7 +133,7 @@ function computeRotationSynergy(
       reason: 'reason_legume_nitrogen_fix',
     };
   }
-  if (currentCrop.family === 'legume' && candidate.nitrogenBalanceKgHa < -60) {
+  if (currentCrop.family === 'legume' && candidate.nitrogenBalanceKgHa < -55) {
     return {
       score: 94,
       diseaseBreak: 'high',
@@ -101,7 +141,13 @@ function computeRotationSynergy(
       reason: 'reason_residual_nitrogen',
     };
   }
-  if (candidate.family === 'brassica' || candidate.family === 'root') {
+  if (
+    candidate.family === 'brassica' ||
+    candidate.family === 'root' ||
+    candidate.family === 'allium' ||
+    candidate.family === 'solanaceae' ||
+    candidate.family === 'cucurbit'
+  ) {
     return {
       score: 86,
       diseaseBreak: 'high',
@@ -158,10 +204,26 @@ export function predictNextCrops(
   const currentCrop =
     CROP_SPECS.find((c) => c.id === currentCropId) ?? CROP_SPECS[0];
 
-  const traditionalCrops = inferTraditionalRegionalCrops(bundle.location);
-  const windowStats = getPostHarvestWindow(bundle, harvestMonth, 4);
-  const adjustedPrecipMm =
-    windowStats.totalPrecipMm * (1 + sensitivity.rainfallDeltaPct / 100);
+  const monthlyTemps = bundle.monthlyClimate.map((m) => m.tempC);
+  const meanTempC =
+    monthlyTemps.reduce((acc, t) => acc + t, 0) / Math.max(1, monthlyTemps.length);
+  const coldestMonthC = Math.min(...monthlyTemps, 15);
+  const warmestMonthC = Math.max(...monthlyTemps, 20);
+  const annualPrecipMm = bundle.monthlyClimate.reduce(
+    (acc, m) => acc + m.precipMm,
+    0
+  );
+
+  const regionalProfile = inferRegionalCropProfile(bundle.location, {
+    meanTempC,
+    annualPrecipMm,
+    coldestTempC: coldestMonthC,
+  });
+  const traditionalCrops = regionalProfile.crops;
+  const regionalRankMap = new Map<string, number>();
+  traditionalCrops.forEach((id, idx) => {
+    if (!regionalRankMap.has(id)) regionalRankMap.set(id, idx);
+  });
 
   const avgAbsAnomaly =
     bundle.yearlyAnomalies.reduce((acc, y) => acc + Math.abs(y.anomalyPct), 0) /
@@ -180,60 +242,116 @@ export function predictNextCrops(
       candidate,
       recentHistoryCropIds
     );
-    const isTraditionalRegional = traditionalCrops.includes(candidate.id);
+    const regionalRank = regionalRankMap.get(candidate.id) ?? null;
+    const isTraditionalRegional = regionalRank !== null;
+
+    const windowStats = selectOptimalWindowForCrop(
+      bundle,
+      harvestMonth,
+      candidate
+    );
+    const adjustedPrecipMm =
+      windowStats.totalPrecipMm * (1 + sensitivity.rainfallDeltaPct / 100);
 
     // 1. Water & Humidity Fit
     const irrigationSupplyMm =
       waterAvailability === 'full'
-        ? candidate.waterNeedMm * 0.9
+        ? candidate.waterNeedMm * 0.92
         : waterAvailability === 'limited'
-        ? Math.min(candidate.waterNeedMm * 0.55, adjustedPrecipMm + 130)
+        ? Math.min(candidate.waterNeedMm * 0.58, adjustedPrecipMm + 140)
         : adjustedPrecipMm;
 
     const effectiveWaterMm =
       Math.max(adjustedPrecipMm, irrigationSupplyMm) +
-      (bundle.currentSnapshot.rootWetnessPct / 100) * 95;
+      (bundle.currentSnapshot.rootWetnessPct / 100) * 90;
     const waterRatio = effectiveWaterMm / candidate.waterNeedMm;
     const waterDeviation = Math.abs(1 - waterRatio);
 
-    // High humidity (>82%) slightly increases fungal risk for chickpeas/potatoes/wheat
+    const fungalSensitive =
+      candidate.family === 'solanaceae' ||
+      candidate.family === 'allium' ||
+      ['chickpeas', 'wine_grapes', 'strawberries', 'sunflower', 'lentils'].includes(
+        candidate.id
+      );
     const humidityPenalty =
-      windowStats.avgHumidityPct > 82 &&
-      ['chickpeas', 'potatoes', 'sunflower'].includes(candidate.id)
-        ? 8
+      windowStats.avgHumidityPct > 82 && fungalSensitive
+        ? 9
         : windowStats.avgHumidityPct < 38 && candidate.droughtTolerance < 0.5
-        ? 7
+        ? 8
         : 0;
 
     let moistureFit = clamp(
       Math.round(
         100 -
-          waterDeviation * (candidate.droughtTolerance > 0.7 ? 50 : 75) -
+          waterDeviation * (candidate.droughtTolerance > 0.7 ? 48 : 74) -
           humidityPenalty
       ),
-      22,
+      15,
       98
     );
     if (sensitivity.conservationTillage && waterRatio < 1) {
-      moistureFit = clamp(moistureFit + 6, 22, 99);
+      moistureFit = clamp(moistureFit + 6, 15, 99);
     }
 
     // 2. Thermal, Growing Season Length & Plant Hardiness Fit
-    const thermalScore = scoreRange(windowStats.avgTempC, candidate.optimalTempC, 12);
+    const thermalScore = scoreRange(
+      windowStats.avgTempC,
+      candidate.optimalTempC,
+      11
+    );
     const solarScore = clamp(Math.round(68 + windowStats.avgSolar * 5.2), 55, 98);
-    // Winter wheat / alfalfa overwinter so compare against frost tolerance; summer crops need frostFreeDays
+
+    const isPerennial = candidate.lifeForm === 'Perennial';
+    const absMinTemp = candidate.absTempC?.[0] ?? -5;
+    const absMaxTemp = candidate.absTempC?.[1] ?? 38;
+
+    // Hardiness check for perennials & winter crops against coldest month temperature
+    let winterSurvivalPenalty = 0;
+    if (isPerennial && coldestMonthC < absMinTemp) {
+      winterSurvivalPenalty = clamp(
+        Math.round((absMinTemp - coldestMonthC) * 4.2),
+        12,
+        55
+      );
+    }
+    // Tropical crops in cool high-latitude regions cannot mature if summer peak < optimal min
+    let heatDeficitPenalty = 0;
+    if (warmestMonthC < candidate.optimalTempC[0] - 1) {
+      heatDeficitPenalty = clamp(
+        Math.round((candidate.optimalTempC[0] - warmestMonthC) * 6),
+        8,
+        45
+      );
+    }
+    // Cool-adapted crops in year-round hot tropics suffer heat stress
+    let heatStressPenalty = 0;
+    if (coldestMonthC > candidate.optimalTempC[1] + 1 || warmestMonthC > absMaxTemp) {
+      const excess = Math.max(
+        0,
+        coldestMonthC - candidate.optimalTempC[1],
+        warmestMonthC - absMaxTemp
+      );
+      heatStressPenalty = clamp(Math.round(excess * 5.5), 6, 42);
+    }
+
     const seasonFitsWindow =
-      candidate.frostTolerance >= 0.75 ||
+      candidate.frostTolerance >= 0.72 ||
       candidate.growingDays <= frostFreeDays + 15;
-    const seasonPenalty = seasonFitsWindow ? 0 : 18;
+    const seasonPenalty = seasonFitsWindow ? 0 : 20;
     const frostPenalty =
-      minForecastTemp < 1 && candidate.frostTolerance < 0.4 ? 12 : 0;
+      minForecastTemp < 1 && candidate.frostTolerance < 0.35 ? 8 : 0;
 
     const thermalSolarFit = clamp(
       Math.round(
-        thermalScore * 0.78 + solarScore * 0.22 - frostPenalty - seasonPenalty
+        thermalScore * 0.78 +
+          solarScore * 0.22 -
+          frostPenalty -
+          seasonPenalty -
+          winterSurvivalPenalty -
+          heatDeficitPenalty -
+          heatStressPenalty
       ),
-      18,
+      10,
       98
     );
 
@@ -245,7 +363,7 @@ export function predictNextCrops(
         : 'sensitive';
 
     // 3. Soil Quality & Health Fit (pH + organic carbon + SoilGrids nitrogen + texture)
-    const phScore = scoreRange(bundle.soil.ph, candidate.optimalPh, 1.8);
+    const phScore = scoreRange(bundle.soil.ph, candidate.optimalPh, 1.5);
     const socBonus = clamp((bundle.soil.socGKg - 12) * 0.8, -8, 10);
     const nFactor =
       candidate.family === 'legume'
@@ -258,7 +376,7 @@ export function predictNextCrops(
       : 0;
     const soilSuitability = clamp(
       Math.round(phScore * 0.82 + 8 + socBonus + nFactor + textureBonus),
-      28,
+      20,
       99
     );
 
@@ -269,7 +387,7 @@ export function predictNextCrops(
           (candidate.droughtTolerance - 0.5) * 14 -
           (candidate.id === 'rice' && avgAbsAnomaly > 18 ? 10 : 0)
       ),
-      30,
+      28,
       97
     );
 
@@ -295,11 +413,11 @@ export function predictNextCrops(
 
     // Base agronomic core for yield scaling
     const agronomicCore =
-      rotation.score * 0.25 +
+      rotation.score * 0.22 +
       moistureFit * 0.22 +
-      thermalSolarFit * 0.2 +
+      thermalSolarFit * 0.24 +
       soilSuitability * 0.16 +
-      climateStability * 0.08 +
+      climateStability * 0.07 +
       laborAndSlopeFit * 0.09;
 
     // 6. Yield & Economic ROI
@@ -314,9 +432,11 @@ export function predictNextCrops(
             0.16
           );
     const tillageEffect = sensitivity.conservationTillage ? 0.04 : 0;
-    const regionalYieldFactor = isTraditionalRegional ? 1.04 : 0.94;
+    const regionalYieldFactor = isTraditionalRegional
+      ? 1.06 - Math.min(0.04, (regionalRank ?? 0) * 0.004)
+      : 0.9;
     const suitabilityMultiplier =
-      (0.62 + (agronomicCore / 100) * 0.54) * regionalYieldFactor;
+      (0.55 + (agronomicCore / 100) * 0.6) * regionalYieldFactor;
 
     const expectedYieldTHa = Number(
       (
@@ -345,33 +465,50 @@ export function predictNextCrops(
       candidate.estInputCostUsdPerHa - nitrogenCostSavings + customHireCost
     );
     const estNetMarginUsdHa = Math.round(estGrossRevenueUsdHa - totalCostHa);
-    const roiPct = Math.round((estNetMarginUsdHa / totalCostHa) * 100);
+    const roiPct = clamp(
+      Math.round((estNetMarginUsdHa / totalCostHa) * 100),
+      -60,
+      240
+    );
 
     const economicViability: 'strong' | 'moderate' | 'tight' =
       roiPct >= 45 ? 'strong' : roiPct >= 15 ? 'moderate' : 'tight';
 
-    const marginScore = clamp(Math.round(50 + roiPct * 0.55), 24, 98);
-    const regionalBaseScore = isTraditionalRegional ? 94 : 58;
+    // Regional Production Prevalence Score (Strong differentiation by region)
+    const regionalPrevalenceScore =
+      regionalRank !== null
+        ? clamp(Math.round(98 - regionalRank * 2.5), 68, 98)
+        : thermalSolarFit >= 75 && moistureFit >= 70
+        ? 38
+        : 22;
+
+    const marginScore = clamp(Math.round(48 + roiPct * 0.38), 20, 96);
     const regionalEconomics = Math.round(
-      regionalBaseScore * 0.52 + marginScore * 0.48
+      regionalPrevalenceScore * 0.68 + marginScore * 0.32
     );
 
     const equipmentPenalty = prioritizeOwnedEquipment
       ? missingEquipment.length * 14
-      : missingEquipment.length * 3;
+      : missingEquipment.length * 2;
+
+    // Penalize ecologically incompatible crops sharply so non-viable plants drop cleanly
+    const ecologicalGatePenalty =
+      (thermalSolarFit < 42 ? (42 - thermalSolarFit) * 0.45 : 0) +
+      (moistureFit < 40 ? (40 - moistureFit) * 0.35 : 0);
 
     const compositeScore = clamp(
       Math.round(
-        rotation.score * 0.21 +
-          moistureFit * 0.18 +
-          thermalSolarFit * 0.16 +
-          soilSuitability * 0.13 +
-          climateStability * 0.07 +
-          regionalEconomics * 0.15 +
-          laborAndSlopeFit * 0.1 -
-          equipmentPenalty
+        rotation.score * 0.17 +
+          moistureFit * 0.16 +
+          thermalSolarFit * 0.18 +
+          soilSuitability * 0.12 +
+          climateStability * 0.05 +
+          regionalEconomics * 0.24 +
+          laborAndSlopeFit * 0.08 -
+          equipmentPenalty -
+          ecologicalGatePenalty
       ),
-      15,
+      10,
       99
     );
 
@@ -379,7 +516,7 @@ export function predictNextCrops(
     const yieldGainVsMonoPct =
       candidate.id === currentCrop.id
         ? -12
-        : Math.round(((compositeScore - 58) / 42) * 24 * monoPenaltyFactor);
+        : Math.round(((compositeScore - 54) / 45) * 24 * monoPenaltyFactor);
 
     const confidenceIntervalTHa = Number(
       (expectedYieldTHa * (0.08 + (100 - climateStability) / 450)).toFixed(2)
@@ -402,9 +539,11 @@ export function predictNextCrops(
       confidenceIntervalTHa,
       yieldGainVsMonoPct,
       nitrogenDeltaKgHa: candidate.nitrogenBalanceKgHa,
-      waterMatchPct: clamp(Math.round(waterRatio * 100), 30, 130),
+      waterMatchPct: clamp(Math.round(waterRatio * 100), 25, 135),
       diseaseBreakRating: rotation.diseaseBreak,
       isTraditionalRegional,
+      regionalRank: regionalRank !== null ? regionalRank + 1 : null,
+      regionalPrevalenceScore,
       estGrossRevenueUsdHa,
       estNetMarginUsdHa,
       roiPct,
@@ -480,7 +619,10 @@ export function evaluateWeatherAlerts(
     alerts.push({
       id: `rain-${heavyRainDay.date}`,
       type: 'heavy_rain',
-      severity: heavyRainDay.precipMm >= thresholds.heavyRainMm + 15 ? 'critical' : 'warning',
+      severity:
+        heavyRainDay.precipMm >= thresholds.heavyRainMm + 15
+          ? 'critical'
+          : 'warning',
       date: heavyRainDay.date,
       metricValue: `${Math.round(heavyRainDay.precipMm)} mm`,
       titleKey: 'alert_rain_title',

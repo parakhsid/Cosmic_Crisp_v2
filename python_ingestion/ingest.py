@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CropNext In-Memory Geospatial Data-Ingestion Module.
+Cosmic Crisp In-Memory Geospatial Data-Ingestion Module.
 
 Streams open-source global geospatial and agricultural datasets directly into
 memory (xarray / rioxarray) without writing intermediate raster files to disk:
@@ -883,7 +883,7 @@ def run_ingestion(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="CropNext geospatial xarray ingestion")
+    parser = argparse.ArgumentParser(description="Cosmic Crisp geospatial xarray ingestion")
     parser.add_argument("--lat", type=float, required=True)
     parser.add_argument("--lon", type=float, required=True)
     parser.add_argument("--bbox", type=str, default=None, help="JSON [minx,miny,maxx,maxy]")

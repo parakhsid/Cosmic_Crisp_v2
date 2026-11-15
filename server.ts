@@ -33,7 +33,7 @@ import {
 } from './server/validation.ts';
 import {
   GLOBAL_FARM_HUBS,
-  inferTraditionalRegionalCrops,
+  inferRegionalCropProfile,
   makeLocationKey,
 } from './src/data/cropsAndLocations.ts';
 import {
@@ -46,6 +46,7 @@ import {
   predictNextCrops,
 } from './src/lib/statisticalModel.ts';
 import type {
+  CurrentWeatherSnapshot,
   DailyForecastPoint,
   FarmInsightBundle,
   LocationOption,
@@ -105,10 +106,176 @@ async function fetchWithTimeout(url: string, timeoutMs = 5500): Promise<Response
   try {
     return await fetch(url, {
       signal: controller.signal,
-      headers: {'User-Agent': 'CropNext-Agronomy-App/1.0'},
+      headers: {'User-Agent': 'CosmicCrisp-Agronomy-App/1.0'},
     });
   } finally {
     clearTimeout(timer);
+  }
+}
+
+const CDL_NAME_TO_CROP_ID: Record<string, string> = {
+  corn: 'corn',
+  'sweet corn': 'sweet_corn',
+  'pop or orn corn': 'corn',
+  soybeans: 'soybeans',
+  'winter wheat': 'winter_wheat',
+  'spring wheat': 'spring_wheat',
+  'durum wheat': 'durum_wheat',
+  cotton: 'cotton',
+  rice: 'rice',
+  sorghum: 'sorghum',
+  barley: 'barley',
+  oats: 'oats',
+  rye: 'rye',
+  alfalfa: 'alfalfa',
+  canola: 'canola',
+  sunflower: 'sunflower',
+  potatoes: 'potatoes',
+  'sweet potatoes': 'sweet_potatoes',
+  peanuts: 'peanuts',
+  'chick peas': 'chickpeas',
+  lentils: 'lentils',
+  'dry beans': 'common_beans',
+  sugarbeets: 'sugar_beet',
+  apples: 'apples',
+  grapes: 'wine_grapes',
+  almonds: 'almonds',
+  oranges: 'citrus',
+  citrus: 'citrus',
+  cherries: 'cherries',
+  pears: 'pears',
+  hops: 'hops',
+  onions: 'onions',
+  tomatoes: 'tomatoes',
+  blueberries: 'blueberries',
+  strawberries: 'strawberries',
+  olives: 'olives',
+  clovers: 'red_clover',
+  'clover/wildflowers': 'red_clover',
+  vetch: 'hairy_vetch',
+  millet: 'pearl_millet',
+  flaxseed: 'flax',
+  mustard: 'mustard',
+  camelina: 'camelina',
+  triticale: 'triticale',
+  safflower: 'safflower',
+  garlic: 'garlic',
+  cabbage: 'cabbage',
+  pumpkins: 'squash_pumpkins',
+  squash: 'squash_pumpkins',
+  watermelons: 'watermelon',
+  peppers: 'chili_peppers',
+  carrots: 'carrots',
+  spinach: 'spinach',
+  lettuce: 'lettuce',
+  turnips: 'turnips',
+  radishes: 'daikon_radish',
+  buckwheat: 'buckwheat',
+  hemp: 'hemp',
+};
+
+function latLonToEpsg5070(latDeg: number, lonDeg: number): [number, number] {
+  const deg2rad = Math.PI / 180;
+  const a = 6378137.0;
+  const f = 1 / 298.257222101;
+  const e2 = 2 * f - f * f;
+  const e = Math.sqrt(e2);
+  const phi1 = 29.5 * deg2rad;
+  const phi2 = 45.5 * deg2rad;
+  const phi0 = 23.0 * deg2rad;
+  const lam0 = -96.0 * deg2rad;
+  const phi = latDeg * deg2rad;
+  const lam = lonDeg * deg2rad;
+
+  const q = (p: number) => {
+    const sp = Math.sin(p);
+    return (
+      (1 - e2) *
+      (sp / (1 - e2 * sp * sp) -
+        (1 / (2 * e)) * Math.log((1 - e * sp) / (1 + e * sp)))
+    );
+  };
+  const m = (p: number) => {
+    const sp = Math.sin(p);
+    return Math.cos(p) / Math.sqrt(1 - e2 * sp * sp);
+  };
+
+  const m1 = m(phi1);
+  const m2 = m(phi2);
+  const q0 = q(phi0);
+  const q1 = q(phi1);
+  const q2 = q(phi2);
+  const qPhi = q(phi);
+  const n = (m1 * m1 - m2 * m2) / (q2 - q1);
+  const c = m1 * m1 + n * q1;
+  const rho0 = (a * Math.sqrt(c - n * q0)) / n;
+  const rho = (a * Math.sqrt(Math.max(0, c - n * qPhi))) / n;
+  const theta = n * (lam - lam0);
+  return [rho * Math.sin(theta), rho0 - rho * Math.cos(theta)];
+}
+
+const cropscapeCache = new Map<string, string[]>();
+
+async function fetchUsdaCropscapeMix(
+  lat: number,
+  lon: number
+): Promise<string[] | null> {
+  if (lat < 24.4 || lat > 49.5 || lon < -125.0 || lon > -66.9) {
+    return null;
+  }
+  const cacheKey = `${lat.toFixed(1)},${lon.toFixed(1)}`;
+  const cached = cropscapeCache.get(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const [cx, cy] = latLonToEpsg5070(lat, lon);
+    const half = 6000; // 12km x 12km neighborhood cropland census
+    const bbox = `${Math.round(cx - half)},${Math.round(cy - half)},${Math.round(
+      cx + half
+    )},${Math.round(cy + half)}`;
+    const url = `https://nassgeodata.gmu.edu/axis2/services/CDLService/GetCDLStat?year=2023&bbox=${bbox}&format=json`;
+    const res = await fetchWithTimeout(url, 3200);
+    if (!res.ok) return null;
+    const rawText = await res.text();
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    const parsed = JSON.parse(jsonMatch[0]) as {
+      Result?: Array<{Category?: string; Acreage?: number | string}>;
+    };
+    const rows = Array.isArray(parsed.Result) ? parsed.Result : [];
+    const cropCounts = new Map<string, number>();
+
+    for (const row of rows) {
+      const cat = String(row.Category || '')
+        .trim()
+        .toLowerCase();
+      const acreage = Number(row.Acreage ?? 0);
+      if (!cat || !Number.isFinite(acreage) || acreage <= 0) continue;
+      // Handle double-crop entries like "Dbl Crop WinWht/Soybeans"
+      const parts = cat
+        .replace(/^dbl crop\s+/i, '')
+        .split('/')
+        .map((p) => p.trim());
+      for (const p of parts) {
+        const mapped = CDL_NAME_TO_CROP_ID[p];
+        if (mapped) {
+          cropCounts.set(mapped, (cropCounts.get(mapped) ?? 0) + acreage);
+        }
+      }
+    }
+
+    const ranked = Array.from(cropCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([id]) => id)
+      .slice(0, 12);
+
+    if (ranked.length >= 2) {
+      cropscapeCache.set(cacheKey, ranked);
+      return ranked;
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 
@@ -327,37 +494,115 @@ async function fetchSoilGrids(lat: number, lon: number): Promise<SoilProfile | n
   };
 }
 
+function parseCoordinatesQuery(
+  raw: string
+): {lat: number; lon: number} | null {
+  const cleaned = raw.trim().replace(/[°]/g, '');
+  const match = cleaned.match(
+    /^(-?\d+(?:\.\d+)?)\s*[,;\s]+\s*(-?\d+(?:\.\d+)?)$/
+  );
+  if (!match) return null;
+  const lat = Number(match[1]);
+  const lon = Number(match[2]);
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lon) ||
+    lat < -90 ||
+    lat > 90 ||
+    lon < -180 ||
+    lon > 180
+  ) {
+    return null;
+  }
+  return {lat, lon};
+}
+
+function safeNum(val: number | null | undefined, fallback: number): number {
+  return typeof val === 'number' && Number.isFinite(val) ? val : fallback;
+}
+
 async function fetchOpenMeteoForecast(
   lat: number,
   lon: number
-): Promise<DailyForecastPoint[] | null> {
+): Promise<{
+  daily: DailyForecastPoint[];
+  currentWeather: CurrentWeatherSnapshot;
+} | null> {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(
     4
   )}&longitude=${lon.toFixed(
     4
-  )}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,et0_fao_evapotranspiration&forecast_days=16&timezone=auto`;
+  )}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,et0_fao_evapotranspiration,uv_index_max,sunrise,sunset&forecast_days=16&timezone=auto`;
 
-  const res = await fetchWithTimeout(url, 5000);
+  const res = await fetchWithTimeout(url, 6000);
   if (!res.ok) return null;
   const json = (await res.json()) as {
+    timezone?: string;
+    current?: {
+      time?: string;
+      temperature_2m?: number | null;
+      relative_humidity_2m?: number | null;
+      apparent_temperature?: number | null;
+      precipitation?: number | null;
+      weather_code?: number | null;
+      wind_speed_10m?: number | null;
+    };
     daily?: {
       time?: string[];
-      temperature_2m_max?: number[];
-      temperature_2m_min?: number[];
-      precipitation_sum?: number[];
-      et0_fao_evapotranspiration?: number[];
+      weather_code?: Array<number | null>;
+      temperature_2m_max?: Array<number | null>;
+      temperature_2m_min?: Array<number | null>;
+      precipitation_sum?: Array<number | null>;
+      precipitation_probability_max?: Array<number | null>;
+      wind_speed_10m_max?: Array<number | null>;
+      et0_fao_evapotranspiration?: Array<number | null>;
+      uv_index_max?: Array<number | null>;
+      sunrise?: string[];
+      sunset?: string[];
     };
   };
   const d = json?.daily;
   if (!d?.time?.length) return null;
 
-  return d.time.map((date, idx) => ({
+  const daily: DailyForecastPoint[] = d.time.map((date, idx) => ({
     date,
-    tempMaxC: Number((d.temperature_2m_max?.[idx] ?? 24).toFixed(1)),
-    tempMinC: Number((d.temperature_2m_min?.[idx] ?? 12).toFixed(1)),
-    precipMm: Number((d.precipitation_sum?.[idx] ?? 0).toFixed(1)),
-    et0Mm: Number((d.et0_fao_evapotranspiration?.[idx] ?? 3.2).toFixed(1)),
+    tempMaxC: Number(safeNum(d.temperature_2m_max?.[idx], 22).toFixed(1)),
+    tempMinC: Number(safeNum(d.temperature_2m_min?.[idx], 12).toFixed(1)),
+    precipMm: Number(safeNum(d.precipitation_sum?.[idx], 0).toFixed(1)),
+    et0Mm: Number(safeNum(d.et0_fao_evapotranspiration?.[idx], 2.8).toFixed(1)),
+    weatherCode: Math.round(safeNum(d.weather_code?.[idx], 1)),
+    precipProbPct: Math.round(
+      Math.max(0, Math.min(100, safeNum(d.precipitation_probability_max?.[idx], 0)))
+    ),
+    windMaxKmh: Number(safeNum(d.wind_speed_10m_max?.[idx], 10).toFixed(1)),
+    uvIndexMax: Number(safeNum(d.uv_index_max?.[idx], 4).toFixed(1)),
+    sunrise: d.sunrise?.[idx],
+    sunset: d.sunset?.[idx],
   }));
+
+  const cur = json?.current;
+  const currentWeather: CurrentWeatherSnapshot = {
+    tempC: Number(
+      safeNum(cur?.temperature_2m, daily[0]?.tempMaxC ?? 20).toFixed(1)
+    ),
+    apparentTempC: Number(
+      safeNum(cur?.apparent_temperature, safeNum(cur?.temperature_2m, 20)).toFixed(1)
+    ),
+    humidityPct: Math.round(
+      Math.max(0, Math.min(100, safeNum(cur?.relative_humidity_2m, 62)))
+    ),
+    precipMm: Number(safeNum(cur?.precipitation, 0).toFixed(1)),
+    windKmh: Number(
+      safeNum(cur?.wind_speed_10m, daily[0]?.windMaxKmh ?? 10).toFixed(1)
+    ),
+    weatherCode: Math.round(
+      safeNum(cur?.weather_code, daily[0]?.weatherCode ?? 1)
+    ),
+    observedAt: cur?.time || new Date().toISOString(),
+    timezone: json?.timezone || 'UTC',
+  };
+
+  return {daily, currentWeather};
 }
 
 async function resolveFarmInsightsBundle(locInput: {
@@ -380,12 +625,13 @@ async function resolveFarmInsightsBundle(locInput: {
 
   const fallback = buildRegionalFallbackBundle(location);
 
-  const [nasaResult, soilResult, forecastResult, terrainResult] =
+  const [nasaResult, soilResult, forecastResult, terrainResult, cropscapeResult] =
     await Promise.allSettled([
       fetchNasaPower(locInput.lat, locInput.lon),
       fetchSoilGrids(locInput.lat, locInput.lon),
       fetchOpenMeteoForecast(locInput.lat, locInput.lon),
       fetchElevationAndSlope(locInput.lat, locInput.lon),
+      fetchUsdaCropscapeMix(locInput.lat, locInput.lon),
     ]);
 
   const nasa = nasaResult.status === 'fulfilled' ? nasaResult.value : null;
@@ -394,16 +640,38 @@ async function resolveFarmInsightsBundle(locInput: {
     forecastResult.status === 'fulfilled' ? forecastResult.value : null;
   const terrain =
     terrainResult.status === 'fulfilled' ? terrainResult.value : null;
+  const cropscapeCrops =
+    cropscapeResult.status === 'fulfilled' ? cropscapeResult.value : null;
 
   const monthlyClimate = nasa?.monthlyClimate ?? fallback.monthlyClimate;
   const minTemp = Math.min(...monthlyClimate.map((m) => m.tempC));
+  const meanTempC =
+    monthlyClimate.reduce((a, m) => a + m.tempC, 0) /
+    Math.max(1, monthlyClimate.length);
+  const annualPrecipMm = monthlyClimate.reduce((a, m) => a + m.precipMm, 0);
   const slopePct = terrain?.slopePct ?? fallback.currentSnapshot.slopePct;
+
+  const matrixProfile = inferRegionalCropProfile(location, {
+    meanTempC,
+    annualPrecipMm,
+    coldestTempC: minTemp,
+  });
+  const mergedRegionalCrops = cropscapeCrops?.length
+    ? Array.from(new Set([...cropscapeCrops, ...matrixProfile.crops])).slice(
+        0,
+        15
+      )
+    : matrixProfile.crops;
 
   return {
     location: {
       ...location,
       usdaZone: estimateUsdaZone(minTemp),
-      traditionalCrops: inferTraditionalRegionalCrops(location),
+      traditionalCrops: mergedRegionalCrops,
+      regionalSource: cropscapeCrops?.length
+        ? 'usda_cropscape'
+        : 'agro_biome_matrix',
+      regionalZoneLabel: matrixProfile.zoneLabel,
     },
     fetchedAt: new Date().toISOString(),
     dataSources: {
@@ -415,10 +683,12 @@ async function resolveFarmInsightsBundle(locInput: {
       rootWetnessPct:
         nasa?.currentWetnessPct ?? fallback.currentSnapshot.rootWetnessPct,
       relativeHumidityPct:
+        forecast?.currentWeather?.humidityPct ??
         nasa?.currentHumidityPct ??
         fallback.currentSnapshot.relativeHumidityPct,
       surfaceTempC:
-        forecast?.[0]?.tempMaxC ??
+        forecast?.currentWeather?.tempC ??
+        forecast?.daily?.[0]?.tempMaxC ??
         nasa?.currentTempC ??
         fallback.currentSnapshot.surfaceTempC,
       precipLast7dMm:
@@ -435,7 +705,8 @@ async function resolveFarmInsightsBundle(locInput: {
     yearlyAnomalies: nasa?.yearlyAnomalies.length
       ? nasa.yearlyAnomalies
       : fallback.yearlyAnomalies,
-    forecast16d: forecast ?? fallback.forecast16d,
+    forecast16d: forecast?.daily ?? fallback.forecast16d,
+    currentWeather: forecast?.currentWeather ?? fallback.currentWeather,
   };
 }
 
@@ -472,11 +743,30 @@ async function startServer() {
     }
   });
 
-  // Geocoding
+  // Geocoding (supports any named place on Earth via Open-Meteo + direct lat, lon coordinates)
   app.get('/api/geocode', async (req, res) => {
     const query = String(req.query.q || '').trim();
     if (!query) {
       res.json({results: GLOBAL_FARM_HUBS.slice(0, 8)});
+      return;
+    }
+
+    const coordMatch = parseCoordinatesQuery(query);
+    if (coordMatch) {
+      const {lat, lon} = coordMatch;
+      const coordOption: LocationOption = {
+        id: makeLocationKey(lat, lon),
+        name: `Coordinates (${lat.toFixed(3)}, ${lon.toFixed(3)})`,
+        region: `${lat >= 0 ? 'N' : 'S'} ${Math.abs(lat).toFixed(2)}°, ${
+          lon >= 0 ? 'E' : 'W'
+        } ${Math.abs(lon).toFixed(2)}°`,
+        country: 'Global Grid',
+        lat,
+        lon,
+        climateZone: 'Global Coordinates',
+        usdaZone: estimateUsdaZone(12 - Math.abs(lat) * 0.45),
+      };
+      res.json({results: [coordOption]});
       return;
     }
 
@@ -491,8 +781,8 @@ async function startServer() {
     try {
       const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
         query
-      )}&count=6&language=en&format=json`;
-      const upstream = await fetchWithTimeout(url, 4000);
+      )}&count=10&language=en&format=json`;
+      const upstream = await fetchWithTimeout(url, 4500);
       if (upstream.ok) {
         const data = (await upstream.json()) as {
           results?: Array<{
@@ -517,12 +807,19 @@ async function startServer() {
             country: item.country || '',
             lat: item.latitude,
             lon: item.longitude,
-            climateZone: 'Satellite Grid Point',
+            climateZone: 'Open-Meteo Global Grid',
             usdaZone: estimateUsdaZone(10 - Math.abs(item.latitude) * 0.35),
           };
         });
-        const merged = [...localMatches, ...apiResults].slice(0, 8);
-        res.json({results: merged});
+        const seenIds = new Set<string>();
+        const merged: LocationOption[] = [];
+        for (const item of [...localMatches, ...apiResults]) {
+          if (!seenIds.has(item.id)) {
+            seenIds.add(item.id);
+            merged.push(item);
+          }
+        }
+        res.json({results: merged.slice(0, 10)});
         return;
       }
     } catch {
@@ -530,6 +827,72 @@ async function startServer() {
     }
 
     res.json({results: localMatches});
+  });
+
+  // Dedicated Open-Meteo Next 10-Day Weather Forecast for any coordinate on Earth
+  app.get('/api/weather', async (req, res) => {
+    const lat = Number(req.query.lat);
+    const lon = Number(req.query.lon);
+    const requestedDays = Number(req.query.days ?? 10);
+    const days = Number.isFinite(requestedDays)
+      ? Math.max(1, Math.min(16, Math.round(requestedDays)))
+      : 10;
+
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon) ||
+      lat < -90 ||
+      lat > 90 ||
+      lon < -180 ||
+      lon > 180
+    ) {
+      res
+        .status(400)
+        .json({error: 'lat must be -90..90 and lon must be -180..180'});
+      return;
+    }
+
+    const live = await fetchOpenMeteoForecast(lat, lon);
+    if (live) {
+      res.json({
+        location: {
+          lat,
+          lon,
+          name: String(req.query.name || `${lat.toFixed(3)}, ${lon.toFixed(3)}`),
+        },
+        source: 'open-meteo',
+        timezone: live.currentWeather.timezone,
+        currentWeather: live.currentWeather,
+        forecast10d: live.daily.slice(0, 10),
+        forecast: live.daily.slice(0, days),
+        fetchedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const fallback = buildRegionalFallbackBundle({
+      id: makeLocationKey(lat, lon),
+      name: String(req.query.name || `${lat.toFixed(3)}, ${lon.toFixed(3)}`),
+      region: 'Global Grid',
+      country: '',
+      lat,
+      lon,
+      climateZone: 'Global Coordinates',
+      usdaZone: estimateUsdaZone(12 - Math.abs(lat) * 0.45),
+    });
+    res.json({
+      location: {
+        lat,
+        lon,
+        name: fallback.location.name,
+      },
+      source: 'regional_benchmark',
+      timezone: fallback.currentWeather?.timezone ?? 'UTC',
+      currentWeather: fallback.currentWeather,
+      forecast10d: fallback.forecast16d.slice(0, 10),
+      forecast: fallback.forecast16d.slice(0, days),
+      fetchedAt: fallback.fetchedAt,
+    });
   });
 
   // Satellite, Soil, Terrain & 16-day Weather Insights (validated coordinates)
@@ -862,7 +1225,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`CropNext server listening on http://localhost:${PORT}`);
+    console.log(`Cosmic Crisp server listening on http://localhost:${PORT}`);
   });
 }
 

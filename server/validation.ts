@@ -11,6 +11,7 @@ import type {
   LocationOption,
   SlopeClass,
   SyncQueueMutation,
+  UnitSystem,
   WaterAvailability,
   YieldSensitivity,
 } from '../src/types/agronomy.ts';
@@ -25,6 +26,7 @@ const VALID_WATER = new Set<WaterAvailability>(['rainfed', 'limited', 'full']);
 const VALID_LABOR = new Set<LaborAvailability>(['low', 'moderate', 'high']);
 const VALID_SLOPE = new Set<SlopeClass>(['flat', 'gentle', 'steep']);
 const VALID_LANGS = new Set<LanguageCode>(['en', 'es', 'hi', 'fr', 'pt']);
+const VALID_UNITS = new Set<UnitSystem>(['metric', 'imperial']);
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -83,6 +85,15 @@ export function validateLocation(raw: unknown): ValidationResult<LocationOption>
             (x): x is string => typeof x === 'string' && VALID_CROP_IDS.has(x)
           )
         : undefined,
+      regionalSource:
+        raw.regionalSource === 'usda_cropscape' ||
+        raw.regionalSource === 'agro_biome_matrix'
+          ? raw.regionalSource
+          : undefined,
+      regionalZoneLabel:
+        typeof raw.regionalZoneLabel === 'string'
+          ? raw.regionalZoneLabel.trim().slice(0, 120)
+          : undefined,
     },
   };
 }
@@ -233,6 +244,17 @@ export function validateSettingsPatch(
       errors.push('lang must be one of en, es, hi, fr, pt');
     } else {
       out.lang = body.lang as LanguageCode;
+    }
+  }
+
+  if (body.unitSystem !== undefined) {
+    if (
+      typeof body.unitSystem !== 'string' ||
+      !VALID_UNITS.has(body.unitSystem as UnitSystem)
+    ) {
+      errors.push('unitSystem must be metric or imperial');
+    } else {
+      out.unitSystem = body.unitSystem as UnitSystem;
     }
   }
 
