@@ -99,8 +99,10 @@ export function validateLocation(raw: unknown): ValidationResult<LocationOption>
 }
 
 export function validateCreateFarm(body: unknown): ValidationResult<{
+  id?: string;
   name: string;
   location?: LocationOption;
+  settings?: Partial<FarmSettings>;
 }> {
   if (!isRecord(body)) {
     return {valid: false, errors: ['Request body must be a JSON object']};
@@ -114,6 +116,15 @@ export function validateCreateFarm(body: unknown): ValidationResult<{
     errors.push('name must be between 2 and 80 characters');
   }
 
+  let id: string | undefined;
+  if (body.id !== undefined) {
+    if (typeof body.id !== 'string' || !/^[a-zA-Z0-9_-]{3,80}$/.test(body.id)) {
+      errors.push('id must be 3-80 alphanumeric, hyphen, or underscore characters');
+    } else {
+      id = body.id;
+    }
+  }
+
   let location: LocationOption | undefined;
   if (body.location !== undefined) {
     const locCheck = validateLocation(body.location);
@@ -124,12 +135,25 @@ export function validateCreateFarm(body: unknown): ValidationResult<{
     }
   }
 
+  let settings: Partial<FarmSettings> | undefined;
+  if (body.settings !== undefined) {
+    const settingsCheck = validateSettingsPatch(body.settings);
+    if (!settingsCheck.valid) {
+      errors.push(...settingsCheck.errors);
+    } else {
+      const {location: _loc, ...rest} = settingsCheck.data;
+      settings = rest;
+    }
+  }
+
   if (errors.length) return {valid: false, errors};
   return {
     valid: true,
     data: {
+      id,
       name: String(body.name).trim(),
       location,
+      settings,
     },
   };
 }

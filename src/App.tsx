@@ -77,17 +77,49 @@ export default function App() {
   const [simulateOffline, setSimulateOffline] = useState(false);
   const isOfflineActive = !isOnline || simulateOffline;
 
-  const [farms, setFarms] = useState<FarmProfileSummary[]>([
-    {
-      id: DEFAULT_FARM_ID,
-      name: 'North 40 · Story County, IA',
-      locationName: GLOBAL_FARM_HUBS[0].name,
-      updatedAt: new Date().toISOString(),
-    },
-  ]);
+  const [farms, setFarms] = useState<FarmProfileSummary[]>(() => {
+    try {
+      const cached = localStorage.getItem('cosmic_crisp_farms_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached) as FarmProfileSummary[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Fall back to default farm summary
+    }
+    return [
+      {
+        id: DEFAULT_FARM_ID,
+        name: 'North 40 · Story County, IA',
+        locationName: GLOBAL_FARM_HUBS[0].name,
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+  });
   const [activeFarmId, setActiveFarmId] = useState<string>(() => {
     return localStorage.getItem('cosmic_crisp_active_farm_id') || DEFAULT_FARM_ID;
   });
+
+  const updateFarmsList = useCallback(
+    (
+      next:
+        | FarmProfileSummary[]
+        | ((prev: FarmProfileSummary[]) => FarmProfileSummary[])
+    ) => {
+      setFarms((prev) => {
+        const resolved = typeof next === 'function' ? next(prev) : next;
+        try {
+          localStorage.setItem('cosmic_crisp_farms_cache', JSON.stringify(resolved));
+        } catch {
+          // Ignore storage quota errors
+        }
+        return resolved;
+      });
+    },
+    []
+  );
 
   const [lang, setLang] = useState<LanguageCode>(() => {
     const saved = localStorage.getItem('cosmic_crisp_lang') as LanguageCode | null;
@@ -102,6 +134,8 @@ export default function App() {
   const [selectedLocation, setSelectedLocation] = useState<LocationOption>(
     GLOBAL_FARM_HUBS[0]
   );
+  const [isPreviewingLocation, setIsPreviewingLocation] = useState(false);
+  const activeSavedLocationRef = useRef<LocationOption>(GLOBAL_FARM_HUBS[0]);
   const [currentCropId, setCurrentCropId] = useState('corn');
   const [harvestMonth, setHarvestMonth] = useState(() => new Date().getMonth());
   const [areaAcres, setAreaAcres] = useState(120);
@@ -148,30 +182,51 @@ export default function App() {
 
   const hydratedRef = useRef(false);
 
-  const applyFarmRecordToState = useCallback((farm: FarmProfileRecord) => {
-    setActiveFarmId(farm.id);
-    localStorage.setItem('cosmic_crisp_active_farm_id', farm.id);
-    setSelectedLocation(farm.location);
-    setCurrentCropId(farm.settings.currentCropId);
-    setHarvestMonth(farm.settings.harvestMonth);
-    setAreaAcres(farm.settings.areaAcres);
-    setWaterAvailability(farm.settings.waterAvailability);
-    setLaborAvailability(farm.settings.laborAvailability);
-    setSlopeClass(farm.settings.slopeClass);
-    setSlopeOverridden(true);
-    setOwnedEquipment(farm.settings.ownedEquipment);
-    setPrioritizeOwnedEquipment(farm.settings.prioritizeOwnedEquipment);
-    setLang(farm.settings.lang);
-    localStorage.setItem('cosmic_crisp_lang', farm.settings.lang);
-    if (farm.settings.unitSystem === 'metric' || farm.settings.unitSystem === 'imperial') {
-      setUnit(farm.settings.unitSystem);
-      localStorage.setItem('cosmic_crisp_unit_system', farm.settings.unitSystem);
-    }
-    setThresholds(farm.alertThresholds);
-    setHarvestLogs(farm.harvestLogs);
-    setAlertHistory(farm.alertHistory);
-    void saveFarmProfileCache(farm);
-  }, []);
+  const normalizeSeededFarm = useCallback(
+    (farm: FarmProfileRecord): {farm: FarmProfileRecord; healed: boolean} => {
+      if (farm.id === 'north-40-iowa' && farm.location?.id !== GLOBAL_FARM_HUBS[0].id) {
+        return {farm: {...farm, location: GLOBAL_FARM_HUBS[0]}, healed: true};
+      }
+      const ludhianaIn =
+        GLOBAL_FARM_HUBS.find((h) => h.id === 'ludhiana-in') ?? GLOBAL_FARM_HUBS[4];
+      if (farm.id === 'block-a-punjab' && farm.location?.id !== ludhianaIn.id) {
+        return {farm: {...farm, location: ludhianaIn}, healed: true};
+      }
+      return {farm, healed: false};
+    },
+    []
+  );
+
+  const applyFarmRecordToState = useCallback(
+    (rawFarm: FarmProfileRecord) => {
+      const {farm} = normalizeSeededFarm(rawFarm);
+      activeSavedLocationRef.current = farm.location;
+      setIsPreviewingLocation(false);
+      setActiveFarmId(farm.id);
+      localStorage.setItem('cosmic_crisp_active_farm_id', farm.id);
+      setSelectedLocation(farm.location);
+      setCurrentCropId(farm.settings.currentCropId);
+      setHarvestMonth(farm.settings.harvestMonth);
+      setAreaAcres(farm.settings.areaAcres);
+      setWaterAvailability(farm.settings.waterAvailability);
+      setLaborAvailability(farm.settings.laborAvailability);
+      setSlopeClass(farm.settings.slopeClass);
+      setSlopeOverridden(true);
+      setOwnedEquipment(farm.settings.ownedEquipment);
+      setPrioritizeOwnedEquipment(farm.settings.prioritizeOwnedEquipment);
+      setLang(farm.settings.lang);
+      localStorage.setItem('cosmic_crisp_lang', farm.settings.lang);
+      if (farm.settings.unitSystem === 'metric' || farm.settings.unitSystem === 'imperial') {
+        setUnit(farm.settings.unitSystem);
+        localStorage.setItem('cosmic_crisp_unit_system', farm.settings.unitSystem);
+      }
+      setThresholds(farm.alertThresholds);
+      setHarvestLogs(farm.harvestLogs);
+      setAlertHistory(farm.alertHistory);
+      void saveFarmProfileCache(farm);
+    },
+    [normalizeSeededFarm]
+  );
 
   // Refresh pending sync queue badge count
   const refreshSyncQueueCount = useCallback(async () => {
@@ -188,8 +243,41 @@ export default function App() {
       const desiredId = targetFarmId ?? activeFarmId;
       try {
         if (!isOfflineActive) {
-          const data = await fetchFarmsBootstrap(desiredId);
-          setFarms(data.farms);
+          let data = await fetchFarmsBootstrap(desiredId);
+          const serverIds = new Set(data.farms.map((f) => f.id));
+          const cachedAll = await listFarmProfileCaches();
+
+          // Reconcile any custom client-created farms missing on the server
+          let restoredAny = false;
+          for (const cachedFarm of cachedAll) {
+            const {farm: cleanFarm, healed} = normalizeSeededFarm(cachedFarm);
+            if (healed) {
+              await saveFarmProfileCache(cleanFarm);
+            }
+            if (
+              cleanFarm.id !== 'north-40-iowa' &&
+              cleanFarm.id !== 'block-a-punjab' &&
+              !serverIds.has(cleanFarm.id)
+            ) {
+              try {
+                await createFarmApi({
+                  id: cleanFarm.id,
+                  name: cleanFarm.name,
+                  location: cleanFarm.location,
+                  settings: cleanFarm.settings,
+                });
+                restoredAny = true;
+              } catch {
+                // Ignore individual restore failure
+              }
+            }
+          }
+
+          if (restoredAny) {
+            data = await fetchFarmsBootstrap(desiredId);
+          }
+
+          updateFarmsList(data.farms);
           if (data.activeFarm) {
             applyFarmRecordToState(data.activeFarm);
           }
@@ -202,7 +290,7 @@ export default function App() {
 
       const cachedList = await listFarmProfileCaches();
       if (cachedList.length) {
-        setFarms(
+        updateFarmsList(
           cachedList.map((f) => ({
             id: f.id,
             name: f.name,
@@ -216,7 +304,13 @@ export default function App() {
       }
       hydratedRef.current = true;
     },
-    [activeFarmId, isOfflineActive, applyFarmRecordToState]
+    [
+      activeFarmId,
+      isOfflineActive,
+      applyFarmRecordToState,
+      updateFarmsList,
+      normalizeSeededFarm,
+    ]
   );
 
   useEffect(() => {
@@ -328,6 +422,20 @@ export default function App() {
   // Unified real-time settings persistence (Server JSON DB online, IndexedDB queue offline)
   const persistSettingsPatch = useCallback(
     async (patch: Partial<FarmSettings> & {location?: LocationOption}) => {
+      if (isPreviewingLocation && !patch.location) {
+        return;
+      }
+      if (patch.location) {
+        const nextLocName = patch.location.name;
+        updateFarmsList((prev) =>
+          prev.map((f) =>
+            f.id === activeFarmId
+              ? {...f, locationName: nextLocName, updatedAt: new Date().toISOString()}
+              : f
+          )
+        );
+      }
+
       await updateLocalFarmCache((prev) => {
         const {location, ...settingsPatch} = patch;
         return {
@@ -355,7 +463,27 @@ export default function App() {
         const {farm} = await patchFarmSettingsApi(activeFarmId, patch);
         await saveFarmProfileCache(farm);
         setSyncState('synced');
-      } catch {
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '';
+        if (msg.toLowerCase().includes('not found')) {
+          const cached = await getFarmProfileCache(activeFarmId);
+          if (cached) {
+            try {
+              const restored = await createFarmApi({
+                id: cached.id,
+                name: cached.name,
+                location: cached.location,
+                settings: cached.settings,
+              });
+              updateFarmsList(restored.farms);
+              await saveFarmProfileCache(restored.farm);
+              setSyncState('synced');
+              return;
+            } catch {
+              // Fall through to sync queue
+            }
+          }
+        }
         await enqueueSyncMutation({
           id: `mut-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           farmId: activeFarmId,
@@ -369,22 +497,37 @@ export default function App() {
     [
       activeFarmId,
       isOfflineActive,
+      isPreviewingLocation,
       updateLocalFarmCache,
       refreshSyncQueueCount,
+      updateFarmsList,
     ]
   );
 
   const handleSelectFarm = async (farmId: string) => {
     setSlopeOverridden(false);
+    setIsPreviewingLocation(false);
     await bootstrapFarm(farmId);
   };
 
-  const handleCreateFarm = async (name: string) => {
+  const handleCreateFarm = async (name: string, location: LocationOption) => {
     const {farm, farms: updatedList} = await createFarmApi({
       name,
-      location: selectedLocation,
+      location,
+      settings: {
+        currentCropId,
+        harvestMonth,
+        areaAcres,
+        waterAvailability,
+        laborAvailability,
+        slopeClass,
+        ownedEquipment,
+        prioritizeOwnedEquipment,
+        lang,
+        unitSystem: unit,
+      },
     });
-    setFarms(updatedList);
+    updateFarmsList(updatedList);
     applyFarmRecordToState(farm);
   };
 
@@ -449,7 +592,12 @@ export default function App() {
   const handleSelectLocation = (loc: LocationOption) => {
     setSlopeOverridden(false);
     setSelectedLocation(loc);
-    void persistSettingsPatch({location: loc});
+    const savedLoc = activeSavedLocationRef.current;
+    const matchesSavedFarmLocation =
+      savedLoc.id === loc.id ||
+      (Math.abs(savedLoc.lat - loc.lat) < 0.01 &&
+        Math.abs(savedLoc.lon - loc.lon) < 0.01);
+    setIsPreviewingLocation(!matchesSavedFarmLocation);
   };
 
   // Load live satellite/soil/DEM insights for selected location
@@ -876,6 +1024,8 @@ export default function App() {
         onSaveOffline={handleSaveOffline}
         farms={farms}
         activeFarmId={activeFarmId}
+        selectedLocation={selectedLocation}
+        isPreviewingLocation={isPreviewingLocation}
         onSelectFarm={(id) => void handleSelectFarm(id)}
         onCreateFarm={handleCreateFarm}
         syncState={syncState}

@@ -3,9 +3,9 @@
   "farms": {
     "north-40-iowa": {
       "id": "north-40-iowa",
-      "name": "North 40 · Story County, IA",
+      "name": "North 40 \u00b7 Story County, IA",
       "createdAt": "2026-11-15T02:26:45.185Z",
-      "updatedAt": "2026-11-15T11:06:14.778Z",
+      "updatedAt": "2026-11-15T12:09:26.637Z",
       "location": {
         "id": "story-ia",
         "name": "Story County, Iowa",
@@ -72,7 +72,7 @@
     },
     "block-a-punjab": {
       "id": "block-a-punjab",
-      "name": "Block A · Ludhiana, Punjab",
+      "name": "Block A \u00b7 Ludhiana, Punjab",
       "createdAt": "2026-11-15T02:26:45.185Z",
       "updatedAt": "2026-11-15T03:04:49.142Z",
       "location": {

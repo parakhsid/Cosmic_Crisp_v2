@@ -2,17 +2,21 @@ import {
   BookmarkCheck,
   BookmarkPlus,
   Globe,
+  MapPin,
   Plus,
   RefreshCw,
+  Search,
   WifiOff,
   X,
 } from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
+import {GLOBAL_FARM_HUBS} from '../data/cropsAndLocations';
 import {t} from '../i18n/translations';
 import type {
   FarmInsightBundle,
   FarmProfileSummary,
   LanguageCode,
+  LocationOption,
   UnitSystem,
 } from '../types/agronomy';
 
@@ -30,8 +34,10 @@ interface WorkspaceToolbarProps {
   onSaveOffline: () => void;
   farms: FarmProfileSummary[];
   activeFarmId: string;
+  selectedLocation: LocationOption;
+  isPreviewingLocation: boolean;
   onSelectFarm: (farmId: string) => void;
-  onCreateFarm: (name: string) => Promise<void>;
+  onCreateFarm: (name: string, location: LocationOption) => Promise<void>;
   syncState: 'synced' | 'syncing' | 'pending';
   pendingSyncCount: number;
 }
@@ -52,6 +58,8 @@ export function WorkspaceToolbar({
   onSaveOffline,
   farms,
   activeFarmId,
+  selectedLocation,
+  isPreviewingLocation,
   onSelectFarm,
   onCreateFarm,
   syncState,
@@ -59,8 +67,49 @@ export function WorkspaceToolbar({
 }: WorkspaceToolbarProps) {
   const [creatingFarm, setCreatingFarm] = useState(false);
   const [newFarmName, setNewFarmName] = useState('');
+  const [newFarmLocation, setNewFarmLocation] =
+    useState<LocationOption>(selectedLocation);
+  const [newFarmLocQuery, setNewFarmLocQuery] = useState('');
+  const [newFarmLocResults, setNewFarmLocResults] = useState<LocationOption[]>(
+    []
+  );
+  const [showNewFarmLocDropdown, setShowNewFarmLocDropdown] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!creatingFarm) return;
+    const q = newFarmLocQuery.trim();
+    if (q.length < 2) {
+      setNewFarmLocResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const qLower = q.toLowerCase();
+      const localHits = GLOBAL_FARM_HUBS.filter(
+        (h) =>
+          h.name.toLowerCase().includes(qLower) ||
+          h.region.toLowerCase().includes(qLower) ||
+          h.country.toLowerCase().includes(qLower)
+      );
+      if (isOfflineActive) {
+        setNewFarmLocResults(localHits);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const data = (await res.json()) as {results: LocationOption[]};
+          setNewFarmLocResults(data.results?.length ? data.results : localHits);
+        } else {
+          setNewFarmLocResults(localHits);
+        }
+      } catch {
+        setNewFarmLocResults(localHits);
+      }
+    }, 220);
+    return () => clearTimeout(timer);
+  }, [creatingFarm, newFarmLocQuery, isOfflineActive]);
 
   const provenanceLabel =
     isOfflineActive || servedFromCache
@@ -80,14 +129,16 @@ export function WorkspaceToolbar({
     e.preventDefault();
     const trimmed = newFarmName.trim();
     if (trimmed.length < 2) {
-      setCreateError('Enter at least 2 characters');
+      setCreateError('Enter at least 2 characters for farm name');
       return;
     }
     setSubmitting(true);
     setCreateError(null);
     try {
-      await onCreateFarm(trimmed);
+      await onCreateFarm(trimmed, newFarmLocation);
       setNewFarmName('');
+      setNewFarmLocQuery('');
+      setShowNewFarmLocDropdown(false);
       setCreatingFarm(false);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Unable to create farm');
@@ -107,11 +158,31 @@ export function WorkspaceToolbar({
             </label>
             <select
               id="farm-profile-select"
-              value={activeFarmId}
-              onChange={(e) => onSelectFarm(e.target.value)}
+              value={isPreviewingLocation ? '__preview__' : activeFarmId}
+              onChange={(e) => {
+                if (e.target.value !== '__preview__') {
+                  onSelectFarm(e.target.value);
+                }
+              }}
               className="min-h-[34px] rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-2.5 py-1 text-xs font-semibold text-[#0F172A] focus:border-[#15803D] focus:outline-none cursor-pointer"
             >
-              {farms.map((f) => (
+              {isPreviewingLocation && (
+                <option value="__preview__">
+                  Exploring · {selectedLocation.name} (Unsaved)
+                </option>
+              )}
+              {(farms.some((f) => f.id === activeFarmId)
+                ? farms
+                : [
+                    ...farms,
+                    {
+                      id: activeFarmId,
+                      name: bundle?.location.name ?? activeFarmId,
+                      locationName: bundle?.location.name ?? '',
+                      updatedAt: '',
+                    },
+                  ]
+              ).map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.name}
                 </option>
@@ -122,7 +193,18 @@ export function WorkspaceToolbar({
               type="button"
               disabled={isOfflineActive}
               onClick={() => {
-                setCreatingFarm((v) => !v);
+                setCreatingFarm((v) => {
+                  const next = !v;
+                  if (next) {
+                    setNewFarmLocation(selectedLocation);
+                    setNewFarmLocQuery('');
+                    setShowNewFarmLocDropdown(false);
+                    if (isPreviewingLocation && !newFarmName.trim()) {
+                      setNewFarmName(selectedLocation.name);
+                    }
+                  }
+                  return next;
+                });
                 setCreateError(null);
               }}
               title={t(lang, 'new_farm_btn')}
@@ -271,8 +353,63 @@ export function WorkspaceToolbar({
               onChange={(e) => setNewFarmName(e.target.value)}
               placeholder={t(lang, 'new_farm_placeholder')}
               autoFocus
-              className="min-h-[38px] w-full sm:w-72 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs text-[#0F172A] focus:border-[#15803D] focus:outline-none"
+              className="min-h-[38px] w-full sm:w-60 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs text-[#0F172A] focus:border-[#15803D] focus:outline-none"
             />
+
+            <div className="relative w-full sm:w-64">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#64748B]"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                value={newFarmLocQuery}
+                onFocus={() => setShowNewFarmLocDropdown(true)}
+                onChange={(e) => {
+                  setNewFarmLocQuery(e.target.value);
+                  setShowNewFarmLocDropdown(true);
+                }}
+                placeholder={`Location: ${newFarmLocation.name}`}
+                aria-label="New farm location search"
+                className="min-h-[38px] w-full rounded-lg border border-[#CBD5E1] bg-white pl-8 pr-3 text-xs text-[#0F172A] placeholder:text-[#475569] focus:border-[#15803D] focus:outline-none"
+              />
+              {showNewFarmLocDropdown && newFarmLocResults.length > 0 && (
+                <ul
+                  role="listbox"
+                  className="absolute left-0 right-0 z-30 mt-1 max-h-52 overflow-auto rounded-lg border border-[#CBD5E1] bg-white py-1 shadow-lg"
+                >
+                  {newFarmLocResults.map((loc) => (
+                    <li key={loc.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewFarmLocation(loc);
+                          setNewFarmLocQuery('');
+                          setShowNewFarmLocDropdown(false);
+                          if (!newFarmName.trim()) {
+                            setNewFarmName(loc.name);
+                          }
+                        }}
+                        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-[#F0FDF4] cursor-pointer"
+                      >
+                        <span className="font-medium text-[#0F172A] truncate">
+                          {loc.name}
+                        </span>
+                        <span className="ml-2 text-[11px] text-[#64748B] shrink-0">
+                          {loc.country}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-[#15803D]">
+              <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{newFarmLocation.name}</span>
+            </span>
+
             <button
               type="submit"
               disabled={submitting}

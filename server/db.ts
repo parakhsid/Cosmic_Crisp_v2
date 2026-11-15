@@ -135,6 +135,27 @@ async function ensureDbFile(): Promise<CosmicCrispDbSchema> {
     const raw = await fs.readFile(DB_FILE, 'utf8');
     const parsed = JSON.parse(raw) as CosmicCrispDbSchema;
     if (parsed && parsed.version === 1 && parsed.farms && Object.keys(parsed.farms).length > 0) {
+      let repaired = false;
+      const storyIa = GLOBAL_FARM_HUBS[0];
+      const ludhianaIn =
+        GLOBAL_FARM_HUBS.find((h) => h.id === 'ludhiana-in') ?? GLOBAL_FARM_HUBS[4];
+      if (
+        parsed.farms['north-40-iowa'] &&
+        parsed.farms['north-40-iowa'].location?.id !== storyIa.id
+      ) {
+        parsed.farms['north-40-iowa'].location = storyIa;
+        repaired = true;
+      }
+      if (
+        parsed.farms['block-a-punjab'] &&
+        parsed.farms['block-a-punjab'].location?.id !== ludhianaIn.id
+      ) {
+        parsed.farms['block-a-punjab'].location = ludhianaIn;
+        repaired = true;
+      }
+      if (repaired) {
+        await atomicWriteDb(parsed);
+      }
       return parsed;
     }
   } catch {
@@ -192,8 +213,10 @@ export async function getFarmById(farmId: string): Promise<FarmProfileRecord | n
 }
 
 export async function createFarmProfile(input: {
+  id?: string;
   name: string;
   location?: LocationOption;
+  settings?: Partial<FarmSettings>;
 }): Promise<FarmProfileRecord> {
   return runSerialized(async (db) => {
     const slugBase = input.name
@@ -201,9 +224,15 @@ export async function createFarmProfile(input: {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 36);
-    const id = `${slugBase || 'farm'}-${Math.random().toString(36).slice(2, 6)}`;
+    const id =
+      input.id ??
+      `${slugBase || 'farm'}-${Math.random().toString(36).slice(2, 6)}`;
     const now = new Date().toISOString();
     const loc = input.location ?? GLOBAL_FARM_HUBS[0];
+
+    if (db.farms[id]) {
+      return db.farms[id];
+    }
 
     const record: FarmProfileRecord = {
       id,
@@ -221,6 +250,7 @@ export async function createFarmProfile(input: {
         ownedEquipment: [...DEFAULT_OWNED_EQUIPMENT],
         prioritizeOwnedEquipment: false,
         lang: 'en',
+        ...(input.settings ?? {}),
       },
       alertThresholds: {...DEFAULT_THRESHOLDS},
       harvestLogs: [],
@@ -240,7 +270,7 @@ export async function patchFarmSettings(
     const farm = db.farms[farmId];
     if (!farm) return null;
     const {location, ...settingsPatch} = patch;
-    if (location) {
+    if (location && farmId !== 'north-40-iowa' && farmId !== 'block-a-punjab') {
       farm.location = location;
     }
     farm.settings = {
@@ -331,7 +361,9 @@ export async function applySyncMutations(
     for (const m of mutations) {
       if (m.type === 'settings') {
         const {location, ...settingsPatch} = m.payload;
-        if (location) farm.location = location;
+        if (location && farmId !== 'north-40-iowa' && farmId !== 'block-a-punjab') {
+          farm.location = location;
+        }
         farm.settings = {...farm.settings, ...settingsPatch};
       } else if (m.type === 'thresholds') {
         farm.alertThresholds = m.payload;

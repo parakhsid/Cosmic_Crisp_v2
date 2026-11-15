@@ -45,8 +45,10 @@ export function fetchFarmsBootstrap(farmId?: string): Promise<{
 }
 
 export function createFarmApi(input: {
+  id?: string;
   name: string;
   location?: LocationOption;
+  settings?: Partial<FarmSettings>;
 }): Promise<{farm: FarmProfileRecord; farms: FarmProfileSummary[]}> {
   return apiJson('/api/farms', {
     method: 'POST',
