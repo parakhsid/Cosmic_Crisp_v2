@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "farms": {
+    "north-40-iowa": {
+      "id": "north-40-iowa",
+      "name": "North 40 · Story County, IA",
+      "createdAt": "2026-11-15T02:26:45.185Z",
+      "updatedAt": "2026-11-15T02:26:45.185Z",
+      "location": {
+        "id": "story-ia",
+        "name": "Story County, Iowa",
+        "region": "Iowa",
+        "country": "United States",
+        "lat": 42.036,
+        "lon": -93.465,
+        "climateZone": "Humid Continental",
+        "usdaZone": "5a",
+        "traditionalCrops": [
+          "corn",
+          "soybeans",
+          "alfalfa",
+          "winter_wheat"
+        ]
+      },
+      "settings": {
+        "currentCropId": "corn",
+        "harvestMonth": 10,
+        "areaAcres": 120,
+        "waterAvailability": "rainfed",
+        "laborAvailability": "moderate",
+        "slopeClass": "flat",
+        "ownedEquipment": [
+          "tractor_tillage",
+          "row_crop_planter",
+          "grain_combine",
+          "sprayer_spreader"
+        ],
+        "prioritizeOwnedEquipment": false,
+        "lang": "en"
+      },
+      "alertThresholds": {
+        "pushEnabled": false,
+        "frostTempC": 2,
+        "heatTempC": 35,
+        "droughtWetnessPct": 32,
+        "heavyRainMm": 35
+      },
+      "harvestLogs": [
+        {
+          "id": "seed-log-ia-1",
+          "locationKey": "story-ia",
+          "locationName": "Story County, Iowa",
+          "cropId": "corn",
+          "harvestDate": "2025-10-14",
+          "areaAcres": 120,
+          "actualYieldTHa": 10.6,
+          "notes": "Strong stand, minimal stalk lodging after dry September."
+        },
+        {
+          "id": "seed-log-ia-2",
+          "locationKey": "story-ia",
+          "locationName": "Story County, Iowa",
+          "cropId": "soybeans",
+          "harvestDate": "2024-10-03",
+          "areaAcres": 120,
+          "actualYieldTHa": 3.8,
+          "notes": "No-till drilled into corn residue; clean nodulation."
+        }
+      ],
+      "alertHistory": []
+    },
+    "block-a-punjab": {
+      "id": "block-a-punjab",
+      "name": "Block A · Ludhiana, Punjab",
+      "createdAt": "2026-11-15T02:26:45.185Z",
+      "updatedAt": "2026-11-15T03:04:49.142Z",
+      "location": {
+        "id": "ludhiana-in",
+        "name": "Ludhiana, Punjab",
+        "region": "Punjab",
+        "country": "India",
+        "lat": 30.901,
+        "lon": 75.8573,
+        "climateZone": "Subtropical Monsoon",
+        "usdaZone": "10a",
+        "traditionalCrops": [
+          "rice",
+          "winter_wheat",
+          "corn",
+          "potatoes",
+          "cotton"
+        ]
+      },
+      "settings": {
+        "currentCropId": "rice",
+        "harvestMonth": 9,
+        "areaAcres": 24,
+        "waterAvailability": "limited",
+        "laborAvailability": "low",
+        "slopeClass": "flat",
+        "ownedEquipment": [
+          "tractor_tillage",
+          "sprayer_spreader",
+          "paddy_harvester",
+          "grain_combine"
+        ],
+        "prioritizeOwnedEquipment": false,
+        "lang": "en"
+      },
+      "alertThresholds": {
+        "pushEnabled": false,
+        "frostTempC": 2,
+        "heatTempC": 38,
+        "droughtWetnessPct": 32,
+        "heavyRainMm": 45
+      },
+      "harvestLogs": [
+        {
+          "id": "seed-log-pb-1",
+          "locationKey": "ludhiana-in",
+          "locationName": "Ludhiana, Punjab",
+          "cropId": "rice",
+          "harvestDate": "2025-10-22",
+          "areaAcres": 24,
+          "actualYieldTHa": 6.9,
+          "notes": "Kharif paddy harvested cleanly; ready for rabi wheat seeding."
+        }
+      ],
+      "alertHistory": []
+    }
+  }
+}
