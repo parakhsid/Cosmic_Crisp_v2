@@ -14,6 +14,7 @@ const en = {
   nav_overview: 'Overview',
   nav_climate: 'Climate & Soil',
   nav_irrigation: 'Irrigation',
+  nav_pest: 'Pest & Disease',
   nav_alerts: 'Alerts',
   nav_log: 'Farm Log',
   btn_install_app: 'Install App',
@@ -307,6 +308,12 @@ const en = {
   irrig_subtitle: '6-month water balance, NOAA ENSO outlook, flood & drought readiness, and water-scarcity method ranking.',
   irrig_save_plan: 'Save Irrigation Plan',
   irrig_saved_plan: 'Saved to Farm',
+
+  // Pest & Disease Control Strategy
+  pest_title: 'Pest & Disease Control Strategy',
+  pest_subtitle: '6-month ENSO climate-pathology forecast, irrigation-linked fungal vs. insect shifts, and pre-season IPM checklists.',
+  pest_save_plan: 'Save Pest Strategy',
+  pest_saved_plan: 'Saved to Farm',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -316,6 +323,7 @@ const es: Record<TranslationKey, string> = {
   nav_overview: 'Resumen',
   nav_climate: 'Clima y Suelo',
   nav_irrigation: 'Riego',
+  nav_pest: 'Plagas y Enfermedades',
   nav_alerts: 'Alertas',
   nav_log: 'Historial',
   btn_install_app: 'Instalar App',
@@ -416,6 +424,7 @@ const hi: Record<TranslationKey, string> = {
   nav_overview: 'अवलोकन',
   nav_climate: 'जलवायु व मिट्टी',
   nav_irrigation: 'सिंचाई',
+  nav_pest: 'कीट व रोग',
   nav_alerts: 'चेतावनी',
   nav_log: 'खेत इतिहास',
   btn_install_app: 'ऐप इंस्टॉल करें',
@@ -497,6 +506,7 @@ const fr: Record<TranslationKey, string> = {
   nav_overview: 'Aperçu',
   nav_climate: 'Climat & Sol',
   nav_irrigation: 'Irrigation',
+  nav_pest: 'Ravageurs',
   nav_alerts: 'Alertes',
   nav_log: 'Historique',
   btn_install_app: 'Installer',
@@ -560,6 +570,7 @@ const pt: Record<TranslationKey, string> = {
   nav_overview: 'Visão Geral',
   nav_climate: 'Clima e Solo',
   nav_irrigation: 'Irrigação',
+  nav_pest: 'Pragas e Doenças',
   nav_alerts: 'Alertas',
   nav_log: 'Histórico',
   btn_install_app: 'Instalar App',

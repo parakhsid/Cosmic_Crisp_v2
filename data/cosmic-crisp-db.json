@@ -5,7 +5,7 @@
       "id": "north-40-iowa",
       "name": "North 40 · Story County, IA",
       "createdAt": "2026-11-15T02:26:45.185Z",
-      "updatedAt": "2026-11-15T13:18:49.821Z",
+      "updatedAt": "2026-11-15T14:16:09.157Z",
       "location": {
         "id": "story-ia",
         "name": "Story County, Iowa",
@@ -45,6 +45,12 @@
           "selectedMethod": "rain_pipes",
           "completedContingencyIds": [],
           "updatedAt": "2026-11-15T13:18:49.818Z"
+        },
+        "pestPlan": {
+          "posture": "ipm",
+          "scenarioOverride": "live",
+          "completedPrepIds": [],
+          "updatedAt": "2026-11-15T14:16:09.157Z"
         }
       },
       "alertThresholds": {

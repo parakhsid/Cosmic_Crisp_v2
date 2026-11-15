@@ -12,6 +12,8 @@ import type {
   LaborAvailability,
   LanguageCode,
   LocationOption,
+  PestControlPosture,
+  PestPlanSettings,
   SlopeClass,
   SyncQueueMutation,
   UnitSystem,
@@ -55,6 +57,11 @@ const VALID_IRRIG_METHODS = new Set<IrrigationMethodId>([
   'sprinkler',
   'furrow',
   'drainage',
+]);
+const VALID_PEST_POSTURES = new Set<PestControlPosture>([
+  'ipm',
+  'organic',
+  'conventional',
 ]);
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -348,6 +355,50 @@ export function validateSettingsPatch(
           updatedAt: new Date().toISOString(),
         };
         out.irrigationPlan = cleanPlan;
+      }
+    }
+  }
+
+  if (body.pestPlan !== undefined) {
+    if (!isRecord(body.pestPlan)) {
+      errors.push('pestPlan must be an object');
+    } else {
+      const pp = body.pestPlan;
+      if (!VALID_PEST_POSTURES.has(pp.posture as PestControlPosture)) {
+        errors.push('pestPlan.posture must be ipm, organic, or conventional');
+      } else if (!VALID_SCENARIOS.has(pp.scenarioOverride as EnsoScenarioMode)) {
+        errors.push('pestPlan.scenarioOverride must be live, el_nino, la_nina, or neutral');
+      } else if (
+        pp.completedPrepIds !== undefined &&
+        (!Array.isArray(pp.completedPrepIds) ||
+          pp.completedPrepIds.some((x) => typeof x !== 'string'))
+      ) {
+        errors.push('pestPlan.completedPrepIds must be an array of strings');
+      } else if (
+        pp.focusedThreatId !== undefined &&
+        typeof pp.focusedThreatId !== 'string'
+      ) {
+        errors.push('pestPlan.focusedThreatId must be a string');
+      } else {
+        const cleanPestPlan: PestPlanSettings = {
+          posture: pp.posture as PestControlPosture,
+          scenarioOverride: pp.scenarioOverride as EnsoScenarioMode,
+          completedPrepIds: Array.isArray(pp.completedPrepIds)
+            ? Array.from(
+                new Set(
+                  pp.completedPrepIds
+                    .map((s) => String(s).trim().slice(0, 64))
+                    .filter(Boolean)
+                )
+              )
+            : [],
+          focusedThreatId:
+            typeof pp.focusedThreatId === 'string' && pp.focusedThreatId.trim()
+              ? pp.focusedThreatId.trim().slice(0, 64)
+              : undefined,
+          updatedAt: new Date().toISOString(),
+        };
+        out.pestPlan = cleanPestPlan;
       }
     }
   }

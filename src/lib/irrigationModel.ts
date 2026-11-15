@@ -116,7 +116,7 @@ export function buildFallbackSeasonalOutlook(
   };
 }
 
-interface TeleconnectionEffect {
+export interface TeleconnectionEffect {
   label: string;
   rainShiftPct: number;
   tempShiftC: number;
@@ -127,7 +127,7 @@ interface TeleconnectionEffect {
  * Computes regional ENSO rainfall/temperature teleconnections from parcel coordinates
  * so El Niño / La Niña scenarios behave realistically across hemispheres & monsoon belts.
  */
-function resolveTeleconnection(
+export function resolveTeleconnection(
   lat: number,
   lon: number,
   scenario: EnsoPhase

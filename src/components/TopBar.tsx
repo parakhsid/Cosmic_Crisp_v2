@@ -28,6 +28,7 @@ export function TopBar({
     {id: 'overview', label: t(lang, 'nav_overview')},
     {id: 'climate', label: t(lang, 'nav_climate')},
     {id: 'irrigation', label: t(lang, 'nav_irrigation')},
+    {id: 'pest_disease', label: t(lang, 'nav_pest')},
     {
       id: 'alerts',
       label:
@@ -57,7 +58,7 @@ export function TopBar({
           {/* Zone 2: Single-line navigation links */}
           <nav
             aria-label="Primary"
-            className="hidden md:flex items-center gap-7 text-sm font-medium"
+            className="hidden md:flex items-center gap-5 lg:gap-6 text-sm font-medium"
           >
             {navItems.map((item) => {
               const isActive = activeTab === item.id;

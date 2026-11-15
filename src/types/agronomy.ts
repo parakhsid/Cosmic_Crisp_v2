@@ -1,7 +1,13 @@
 export type LanguageCode = 'en' | 'es' | 'hi' | 'fr' | 'pt';
 export type UnitSystem = 'metric' | 'imperial';
 
-export type NavTab = 'overview' | 'climate' | 'irrigation' | 'alerts' | 'log';
+export type NavTab =
+  | 'overview'
+  | 'climate'
+  | 'irrigation'
+  | 'pest_disease'
+  | 'alerts'
+  | 'log';
 
 export type CropFamily =
   | 'grass'
@@ -275,6 +281,17 @@ export interface IrrigationPlanSettings {
   updatedAt?: string;
 }
 
+export type PestControlPosture = 'ipm' | 'organic' | 'conventional';
+export type ThreatGuild = 'fungal' | 'insect' | 'soil_vector';
+
+export interface PestPlanSettings {
+  posture: PestControlPosture;
+  scenarioOverride: EnsoScenarioMode;
+  completedPrepIds: string[];
+  focusedThreatId?: string;
+  updatedAt?: string;
+}
+
 export interface FarmSettings {
   currentCropId: string;
   harvestMonth: number;
@@ -287,6 +304,7 @@ export interface FarmSettings {
   lang: LanguageCode;
   unitSystem?: UnitSystem;
   irrigationPlan?: IrrigationPlanSettings;
+  pestPlan?: PestPlanSettings;
 }
 
 export interface FarmProfileRecord {
@@ -504,4 +522,70 @@ export interface IrrigationDecisionResult {
   topMethod: IrrigationMethodRecommendation;
   contingencyActions: ContingencyActionItem[];
 }
+
+export interface MonthlyPestRiskPoint {
+  monthKey: string;
+  monthIndex: number;
+  monthLabel: string;
+  forecastPrecipMm: number;
+  normalPrecipMm: number;
+  precipAnomalyPct: number;
+  tempC: number;
+  humidityProxyPct: number;
+  fungalRisk: number;
+  insectRisk: number;
+  soilVectorRisk: number;
+  dominantGuild: ThreatGuild;
+  primaryAgentName: string;
+  weatherDriverNote: string;
+  preemptiveAction: string;
+}
+
+export interface RegionalThreatProfile {
+  id: string;
+  guild: ThreatGuild;
+  commonName: string;
+  scientificName: string;
+  riskScore: number;
+  severity: 'critical' | 'high' | 'moderate' | 'low';
+  peakMonths: string[];
+  weatherTrigger: string;
+  ensoShiftNote: string;
+  irrigationEffectNote: string;
+  earlyScoutingSign: string;
+  culturalPrep: string;
+  biologicalControl: string;
+  targetedIntervention: string;
+  recommendedActionForPosture: string;
+}
+
+export interface PestPrepChecklistItem {
+  id: string;
+  category: 'monitoring' | 'biological_cultural' | 'targeted_control' | 'irrigation_hygiene';
+  priority: 'critical' | 'high' | 'moderate';
+  title: string;
+  detail: string;
+  timingWindow: string;
+}
+
+export interface PestStrategyResult {
+  activeScenario: EnsoPhase;
+  posture: PestControlPosture;
+  regionLabel: string;
+  teleconnectionLabel: string;
+  teleconnectionRainShiftPct: number;
+  teleconnectionTempShiftC: number;
+  irrigationModifierSummary: string;
+  headlineSummary: string;
+  fungalVsInsectSummary: string;
+  peakFungalRisk: number;
+  peakInsectRisk: number;
+  peakSoilVectorRisk: number;
+  avgFungalRisk: number;
+  avgInsectRisk: number;
+  monthlyRisks: MonthlyPestRiskPoint[];
+  threats: RegionalThreatProfile[];
+  prepChecklist: PestPrepChecklistItem[];
+}
+
 

@@ -6,6 +6,7 @@ import {FarmLogView} from './components/FarmLogView';
 import {IrrigationPlannerView} from './components/IrrigationPlannerView';
 import {MobileBottomNav} from './components/MobileBottomNav';
 import {OverviewDashboard} from './components/OverviewDashboard';
+import {PestDiseaseView} from './components/PestDiseaseView';
 import {TopBar} from './components/TopBar';
 import {WorkspaceToolbar} from './components/WorkspaceToolbar';
 import {
@@ -60,11 +61,13 @@ import type {
   FarmProfileSummary,
   FarmSettings,
   HarvestLogEntry,
+  IrrigationMethodId,
   IrrigationPlanSettings,
   LaborAvailability,
   LanguageCode,
   LocationOption,
   NavTab,
+  PestPlanSettings,
   SeasonalEnsoOutlook,
   SlopeClass,
   SyncQueueMutation,
@@ -82,6 +85,12 @@ const DEFAULT_IRRIGATION_PLAN: IrrigationPlanSettings = {
   waterSource: 'well',
   selectedMethod: 'rain_pipes',
   completedContingencyIds: [],
+};
+
+const DEFAULT_PEST_PLAN: PestPlanSettings = {
+  posture: 'ipm',
+  scenarioOverride: 'live',
+  completedPrepIds: [],
 };
 
 export default function App() {
@@ -164,6 +173,7 @@ export default function App() {
   const [irrigationPlan, setIrrigationPlan] = useState<IrrigationPlanSettings>(
     DEFAULT_IRRIGATION_PLAN
   );
+  const [pestPlan, setPestPlan] = useState<PestPlanSettings>(DEFAULT_PEST_PLAN);
 
   const [bundle, setBundle] = useState<FarmInsightBundle | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(true);
@@ -248,6 +258,7 @@ export default function App() {
             farm.settings.waterAvailability === 'full' ? 'abundant' : 'moderate',
         }
       );
+      setPestPlan(farm.settings.pestPlan ?? DEFAULT_PEST_PLAN);
       setThresholds(farm.alertThresholds);
       setHarvestLogs(farm.harvestLogs);
       setAlertHistory(farm.alertHistory);
@@ -421,6 +432,7 @@ export default function App() {
           lang,
           unitSystem: unit,
           irrigationPlan,
+          pestPlan,
         },
         alertThresholds: thresholds,
         harvestLogs,
@@ -443,6 +455,7 @@ export default function App() {
       lang,
       unit,
       irrigationPlan,
+      pestPlan,
       thresholds,
       harvestLogs,
       alertHistory,
@@ -556,6 +569,7 @@ export default function App() {
         lang,
         unitSystem: unit,
         irrigationPlan,
+        pestPlan,
       },
     });
     updateFarmsList(updatedList);
@@ -730,6 +744,26 @@ export default function App() {
       await persistSettingsPatch({irrigationPlan: next});
     },
     [persistSettingsPatch]
+  );
+
+  const handleUpdatePestPlan = useCallback(
+    async (next: PestPlanSettings) => {
+      setPestPlan(next);
+      await persistSettingsPatch({pestPlan: next});
+    },
+    [persistSettingsPatch]
+  );
+
+  const handleChangeIrrigationMethodFromPest = useCallback(
+    async (method: IrrigationMethodId) => {
+      const nextIrr: IrrigationPlanSettings = {
+        ...irrigationPlan,
+        selectedMethod: method,
+      };
+      setIrrigationPlan(nextIrr);
+      await persistSettingsPatch({irrigationPlan: nextIrr});
+    },
+    [irrigationPlan, persistSettingsPatch]
   );
 
   const activeFarmName = useMemo(() => {
@@ -1193,6 +1227,24 @@ export default function App() {
             slopeClass={slopeClass}
             irrigationPlan={irrigationPlan}
             onUpdatePlan={handleUpdateIrrigationPlan}
+          />
+        )}
+
+        {activeTab === 'pest_disease' && (
+          <PestDiseaseView
+            lang={lang}
+            unit={unit}
+            bundle={bundle}
+            outlook={seasonalOutlook}
+            loadingOutlook={loadingOutlook}
+            isOfflineActive={isOfflineActive}
+            activeFarmName={activeFarmName}
+            currentCropId={currentCropId}
+            slopeClass={slopeClass}
+            irrigationMethod={irrigationPlan.selectedMethod}
+            onChangeIrrigationMethod={handleChangeIrrigationMethodFromPest}
+            pestPlan={pestPlan}
+            onUpdatePestPlan={handleUpdatePestPlan}
           />
         )}
 

@@ -64,6 +64,11 @@ function buildSeedDb(): CosmicCrispDbSchema {
             selectedMethod: 'rain_pipes',
             completedContingencyIds: [],
           },
+          pestPlan: {
+            posture: 'ipm',
+            scenarioOverride: 'live',
+            completedPrepIds: [],
+          },
         },
         alertThresholds: {...DEFAULT_THRESHOLDS},
         harvestLogs: [
@@ -118,6 +123,11 @@ function buildSeedDb(): CosmicCrispDbSchema {
             waterSource: 'well',
             selectedMethod: 'rain_pipes',
             completedContingencyIds: [],
+          },
+          pestPlan: {
+            posture: 'ipm',
+            scenarioOverride: 'live',
+            completedPrepIds: [],
           },
         },
         alertThresholds: {
@@ -273,6 +283,11 @@ export async function createFarmProfile(input: {
           waterSource: 'well',
           selectedMethod: 'rain_pipes',
           completedContingencyIds: [],
+        },
+        pestPlan: {
+          posture: 'ipm',
+          scenarioOverride: 'live',
+          completedPrepIds: [],
         },
         ...(input.settings ?? {}),
       },

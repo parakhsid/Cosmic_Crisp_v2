@@ -1,4 +1,4 @@
-import {Bell, BookOpen, Droplets, LineChart, Sprout} from 'lucide-react';
+import {Bell, BookOpen, Bug, Droplets, LineChart, Sprout} from 'lucide-react';
 import {t} from '../i18n/translations';
 import type {LanguageCode, NavTab} from '../types/agronomy';
 
@@ -19,6 +19,7 @@ export function MobileBottomNav({
     {id: 'overview', label: t(lang, 'nav_overview'), icon: Sprout},
     {id: 'climate', label: t(lang, 'nav_climate'), icon: LineChart},
     {id: 'irrigation', label: t(lang, 'nav_irrigation'), icon: Droplets},
+    {id: 'pest_disease', label: t(lang, 'nav_pest'), icon: Bug},
     {
       id: 'alerts',
       label: alertCount > 0 ? `${t(lang, 'nav_alerts')} (${alertCount})` : t(lang, 'nav_alerts'),
@@ -32,7 +33,7 @@ export function MobileBottomNav({
       aria-label="Mobile Navigation"
       className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#E2E8F0] bg-white/95 backdrop-blur-sm md:hidden"
     >
-      <div className="grid h-14 grid-cols-5 items-center">
+      <div className="grid h-14 grid-cols-6 items-center">
         {items.map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;
