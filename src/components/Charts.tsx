@@ -36,7 +36,11 @@ import type {
   SoilProfile,
   YearlyAnomalyPoint,
 } from '../types/agronomy';
-import {getCropPhoto, ResilientPhoto} from './VisualAssets';
+import {
+  getCropFallbackPhoto,
+  getCropPhoto,
+  ResilientPhoto,
+} from './VisualAssets';
 
 interface CandidateChartProps {
   predictions: CropPrediction[];
@@ -85,8 +89,9 @@ export function CandidateComparisonChart({
           >
             <ResilientPhoto
               src={getCropPhoto(item.cropId)}
+              fallbackSrc={getCropFallbackPhoto(item.cropId)}
               alt={cropLabel(lang, item.cropId)}
-              className="h-14 w-16 shrink-0 rounded-md"
+              className="h-14 w-16 shrink-0 rounded-md border border-[#E2E8F0]"
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">

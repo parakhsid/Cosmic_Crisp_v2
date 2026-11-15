@@ -62,6 +62,7 @@ import {CropSelectorDropdown} from './CropSelectorDropdown';
 import {EcoCropExplorer} from './EcoCropExplorer';
 import {
   CircularGauge,
+  getCropFallbackPhoto,
   getCropPhoto,
   ResilientPhoto,
   VISUAL_ASSETS,
@@ -850,6 +851,7 @@ export function OverviewDashboard({
                     <div className="flex items-start gap-4">
                       <ResilientPhoto
                         src={getCropPhoto(activePrediction.cropId)}
+                        fallbackSrc={getCropFallbackPhoto(activePrediction.cropId)}
                         alt={cropLabel(lang, activePrediction.cropId)}
                         className="h-24 w-32 shrink-0 rounded-lg border border-[#E2E8F0]"
                       />

@@ -90,11 +90,24 @@ export default defineConfig(() => {
                 },
               },
             },
+            {
+              urlPattern: /\/crop-images\/.+\.jpg$/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'cosmic-crisp-crop-photos',
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
           ],
         },
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
       }),
     ],

@@ -20,6 +20,11 @@ import type {
   LanguageCode,
 } from '../types/agronomy';
 import {EcoCategoryIcon} from './CropSelectorDropdown';
+import {
+  getCropFallbackPhoto,
+  getCropPhoto,
+  ResilientPhoto,
+} from './VisualAssets';
 
 interface EcoCropExplorerProps {
   lang: LanguageCode;
@@ -322,8 +327,14 @@ export function EcoCropExplorer({
                       {idx + 1}
                     </td>
                     <td className="py-2 pr-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <EcoCategoryIcon category={eco.CAT} className="h-3.5 w-3.5 shrink-0" />
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <ResilientPhoto
+                          src={getCropPhoto(item.cropId)}
+                          fallbackSrc={getCropFallbackPhoto(item.cropId)}
+                          alt={cropLabel(lang, item.cropId)}
+                          loading="lazy"
+                          className="h-8 w-8 shrink-0 rounded-md border border-[#E2E8F0]"
+                        />
                         <div className="min-w-0">
                           <div className="flex items-baseline gap-1.5">
                             <span

@@ -15,6 +15,11 @@ import type {
   HarvestLogEntry,
   LanguageCode,
 } from '../types/agronomy';
+import {
+  getCropFallbackPhoto,
+  getCropPhoto,
+  ResilientPhoto,
+} from './VisualAssets';
 
 interface FarmLogViewProps {
   lang: LanguageCode;
@@ -210,25 +215,34 @@ export function FarmLogView({
                   key={entry.id}
                   className="flex flex-wrap items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
                 >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-display text-base font-bold text-[#0F172A]">
-                        {cropLabel(lang, entry.cropId)}
-                      </span>
-                      <span className="text-xs text-[#64748B]">·</span>
-                      <span className="font-mono-tabular text-xs text-[#475569]">
-                        {entry.harvestDate}
-                      </span>
+                  <div className="flex items-start gap-3">
+                    <ResilientPhoto
+                      src={getCropPhoto(entry.cropId)}
+                      fallbackSrc={getCropFallbackPhoto(entry.cropId)}
+                      alt={cropLabel(lang, entry.cropId)}
+                      loading="lazy"
+                      className="h-11 w-11 shrink-0 rounded-lg border border-[#E2E8F0]"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-display text-base font-bold text-[#0F172A]">
+                          {cropLabel(lang, entry.cropId)}
+                        </span>
+                        <span className="text-xs text-[#64748B]">·</span>
+                        <span className="font-mono-tabular text-xs text-[#475569]">
+                          {entry.harvestDate}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs text-[#475569] font-mono-tabular">
+                        {entry.locationName} · {formatArea(entry.areaAcres, unit)} ·{' '}
+                        {unit === 'imperial'
+                          ? `${tHaToTonsAc(entry.actualYieldTHa).toFixed(2)} tons/ac`
+                          : `${entry.actualYieldTHa.toFixed(1)} t/ha`}
+                      </div>
+                      {entry.notes && (
+                        <p className="mt-1 text-xs text-[#64748B]">{entry.notes}</p>
+                      )}
                     </div>
-                    <div className="mt-1 text-xs text-[#475569] font-mono-tabular">
-                      {entry.locationName} · {formatArea(entry.areaAcres, unit)} ·{' '}
-                      {unit === 'imperial'
-                        ? `${tHaToTonsAc(entry.actualYieldTHa).toFixed(2)} tons/ac`
-                        : `${entry.actualYieldTHa.toFixed(1)} t/ha`}
-                    </div>
-                    {entry.notes && (
-                      <p className="mt-1 text-xs text-[#64748B]">{entry.notes}</p>
-                    )}
                   </div>
 
                   <div className="flex items-center gap-2">

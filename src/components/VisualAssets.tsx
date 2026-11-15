@@ -1,5 +1,5 @@
 import {Sprout} from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {ECOCROP_BY_ID} from '../data/ecoCrop';
 import cropGrainImg from '../assets/images/crop_grain_fields_1794707225601.jpg';
 import cropLegumeImg from '../assets/images/crop_legume_soy_1794707225412.jpg';
@@ -15,7 +15,7 @@ export const VISUAL_ASSETS = {
   soilHealth: soilHealthImg,
 };
 
-export function getCropPhoto(cropId: string): string {
+export function getCropFallbackPhoto(cropId: string): string {
   const eco = ECOCROP_BY_ID[cropId];
   const cat = eco?.CAT;
   if (cat === 'Legumes' || cat === 'Forage & Cover Crops') {
@@ -38,22 +38,37 @@ export function getCropPhoto(cropId: string): string {
   return cropGrainImg;
 }
 
+export function getCropPhoto(cropId: string): string {
+  if (ECOCROP_BY_ID[cropId]) {
+    return `/crop-images/${cropId}.jpg`;
+  }
+  return getCropFallbackPhoto(cropId);
+}
+
 interface ResilientPhotoProps {
   src: string;
   alt: string;
   className?: string;
+  fallbackSrc?: string;
   fallbackTitle?: string;
+  loading?: 'eager' | 'lazy';
 }
 
 export function ResilientPhoto({
   src,
   alt,
   className = '',
+  fallbackSrc,
   fallbackTitle,
+  loading = 'eager',
 }: ResilientPhotoProps) {
-  const [failed, setFailed] = useState(false);
+  const [stage, setStage] = useState<'primary' | 'fallback' | 'empty'>('primary');
 
-  if (failed) {
+  useEffect(() => {
+    setStage('primary');
+  }, [src, fallbackSrc]);
+
+  if (stage === 'empty') {
     return (
       <div
         className={`flex flex-col items-center justify-center bg-gradient-to-br from-[#DCFCE7] via-[#F0FDF4] to-[#E2E8F0] text-[#15803D] ${className}`}
@@ -68,12 +83,21 @@ export function ResilientPhoto({
     );
   }
 
+  const activeSrc = stage === 'fallback' && fallbackSrc ? fallbackSrc : src;
+
   return (
     <img
-      src={src}
+      src={activeSrc}
       alt={alt}
+      loading={loading}
       referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
+      onError={() => {
+        if (stage === 'primary' && fallbackSrc && fallbackSrc !== src) {
+          setStage('fallback');
+        } else {
+          setStage('empty');
+        }
+      }}
       className={`object-cover ${className}`}
     />
   );

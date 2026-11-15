@@ -19,6 +19,11 @@ import {
 } from '../data/ecoCrop';
 import {cropLabel, t} from '../i18n/translations';
 import type {LanguageCode} from '../types/agronomy';
+import {
+  getCropFallbackPhoto,
+  getCropPhoto,
+  ResilientPhoto,
+} from './VisualAssets';
 
 interface CropSelectorDropdownProps {
   id?: string;
@@ -120,7 +125,14 @@ export function CropSelectorDropdown({
         className="flex w-full min-h-[44px] items-center justify-between gap-2 rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-left transition-colors hover:border-[#94A3B8] focus:border-[#15803D] focus:outline-none cursor-pointer"
       >
         <span className="flex min-w-0 items-center gap-2.5">
-          {selected && <EcoCategoryIcon category={selected.CAT} />}
+          {selected && (
+            <ResilientPhoto
+              src={getCropPhoto(selected.cropId)}
+              fallbackSrc={getCropFallbackPhoto(selected.cropId)}
+              alt={cropLabel(lang, selected.cropId)}
+              className="h-8 w-8 shrink-0 rounded-md border border-[#E2E8F0]"
+            />
+          )}
           <span className="min-w-0">
             <span className="block truncate text-sm font-semibold text-[#0F172A]">
               {cropLabel(lang, value)}
@@ -198,12 +210,19 @@ export function CropSelectorDropdown({
                             onChange(rec.cropId);
                             setOpen(false);
                           }}
-                          className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors cursor-pointer ${
+                          className={`flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left transition-colors cursor-pointer ${
                             isSelected
                               ? 'bg-[#F0FDF4] text-[#0F172A]'
                               : 'hover:bg-[#F8FAFC] text-[#0F172A]'
                           }`}
                         >
+                          <ResilientPhoto
+                            src={getCropPhoto(rec.cropId)}
+                            fallbackSrc={getCropFallbackPhoto(rec.cropId)}
+                            alt={cropLabel(lang, rec.cropId)}
+                            loading="lazy"
+                            className="h-8 w-8 shrink-0 rounded-md border border-[#E2E8F0]"
+                          />
                           <span className="min-w-0 flex-1">
                             <span className="flex items-baseline gap-1.5">
                               <span

@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import express from 'express';
+import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {
@@ -1209,10 +1210,45 @@ async function startServer() {
     }
   });
 
+  const httpServer = http.createServer(app);
+
   if (process.env.NODE_ENV !== 'production') {
+    const devKillSw = `
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => caches.delete(k)));
+    await self.registration.unregister();
+    const clients = await self.clients.matchAll({type: 'window'});
+    for (const client of clients) {
+      client.navigate(client.url);
+    }
+  })());
+});
+`;
+    app.get(['/dev-sw.js', '/sw.js'], (_req, res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      res.send(devKillSw);
+    });
+
+    app.use(
+      '/crop-images',
+      express.static(path.resolve(__dirname, 'public', 'crop-images'), {
+        maxAge: '7d',
+      })
+    );
+
     const {createServer: createViteServer} = await import('vite');
     const vite = await createViteServer({
-      server: {middlewareMode: true},
+      server: {
+        middlewareMode: true,
+        hmr: {server: httpServer},
+        watch: null,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -1224,7 +1260,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Cosmic Crisp server listening on http://localhost:${PORT}`);
   });
 }
