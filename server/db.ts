@@ -56,6 +56,7 @@ function buildSeedDb(): CosmicCrispDbSchema {
           ownedEquipment: [...DEFAULT_OWNED_EQUIPMENT],
           prioritizeOwnedEquipment: false,
           lang: 'en',
+          unitSystem: 'imperial',
         },
         alertThresholds: {...DEFAULT_THRESHOLDS},
         harvestLogs: [
@@ -103,6 +104,7 @@ function buildSeedDb(): CosmicCrispDbSchema {
           ],
           prioritizeOwnedEquipment: false,
           lang: 'en',
+          unitSystem: 'imperial',
         },
         alertThresholds: {
           ...DEFAULT_THRESHOLDS,
@@ -250,6 +252,7 @@ export async function createFarmProfile(input: {
         ownedEquipment: [...DEFAULT_OWNED_EQUIPMENT],
         prioritizeOwnedEquipment: false,
         lang: 'en',
+        unitSystem: 'imperial',
         ...(input.settings ?? {}),
       },
       alertThresholds: {...DEFAULT_THRESHOLDS},

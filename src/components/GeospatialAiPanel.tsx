@@ -129,7 +129,7 @@ function LayerStatsRow({
 
 export function GeospatialAiPanel({
   lang,
-  unit = 'metric',
+  unit = 'imperial',
   lat,
   lon,
   locationName,

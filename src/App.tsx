@@ -126,8 +126,8 @@ export default function App() {
     return saved && ['en', 'es', 'hi', 'fr', 'pt'].includes(saved) ? saved : 'en';
   });
   const [unit, setUnit] = useState<UnitSystem>(() => {
-    const saved = localStorage.getItem('cosmic_crisp_unit_system') as UnitSystem | null;
-    return saved === 'imperial' || saved === 'metric' ? saved : 'metric';
+    const saved = localStorage.getItem('cosmic_crisp_unit_system_v2') as UnitSystem | null;
+    return saved === 'metric' || saved === 'imperial' ? saved : 'imperial';
   });
 
   const [activeTab, setActiveTab] = useState<NavTab>('overview');
@@ -216,10 +216,12 @@ export default function App() {
       setPrioritizeOwnedEquipment(farm.settings.prioritizeOwnedEquipment);
       setLang(farm.settings.lang);
       localStorage.setItem('cosmic_crisp_lang', farm.settings.lang);
-      if (farm.settings.unitSystem === 'metric' || farm.settings.unitSystem === 'imperial') {
-        setUnit(farm.settings.unitSystem);
-        localStorage.setItem('cosmic_crisp_unit_system', farm.settings.unitSystem);
-      }
+      const resolvedUnit: UnitSystem =
+        farm.settings.unitSystem === 'metric' || farm.settings.unitSystem === 'imperial'
+          ? farm.settings.unitSystem
+          : 'imperial';
+      setUnit(resolvedUnit);
+      localStorage.setItem('cosmic_crisp_unit_system_v2', resolvedUnit);
       setThresholds(farm.alertThresholds);
       setHarvestLogs(farm.harvestLogs);
       setAlertHistory(farm.alertHistory);
@@ -539,7 +541,7 @@ export default function App() {
 
   const handleChangeUnit = (next: UnitSystem) => {
     setUnit(next);
-    localStorage.setItem('cosmic_crisp_unit_system', next);
+    localStorage.setItem('cosmic_crisp_unit_system_v2', next);
     void persistSettingsPatch({unitSystem: next});
   };
 

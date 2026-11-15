@@ -53,7 +53,7 @@ interface CandidateChartProps {
 export function CandidateComparisonChart({
   predictions,
   lang,
-  unit = 'metric',
+  unit = 'imperial',
   selectedCropId,
   onSelectCandidate,
 }: CandidateChartProps) {
@@ -183,7 +183,7 @@ const DAILY_RAIN_SCALE_MM = 50;
 export function Forecast16DayStrip({
   forecast,
   currentWeather,
-  unit = 'metric',
+  unit = 'imperial',
 }: {
   forecast: DailyForecastPoint[];
   currentWeather?: CurrentWeatherSnapshot;
@@ -339,7 +339,7 @@ export function Forecast16DayStrip({
 export function SoilHealthProfileChart({
   soil,
   lang,
-  unit = 'metric',
+  unit = 'imperial',
 }: {
   soil: SoilProfile;
   lang: LanguageCode;
@@ -523,7 +523,7 @@ interface MonthlyClimateChartProps {
 export function MonthlyClimateChart({
   data,
   lang,
-  unit = 'metric',
+  unit = 'imperial',
 }: MonthlyClimateChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 

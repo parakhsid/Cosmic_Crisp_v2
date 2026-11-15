@@ -3,7 +3,7 @@
   "farms": {
     "north-40-iowa": {
       "id": "north-40-iowa",
-      "name": "North 40 \u00b7 Story County, IA",
+      "name": "North 40 · Story County, IA",
       "createdAt": "2026-11-15T02:26:45.185Z",
       "updatedAt": "2026-11-15T12:09:26.637Z",
       "location": {
@@ -37,7 +37,7 @@
         ],
         "prioritizeOwnedEquipment": false,
         "lang": "en",
-        "unitSystem": "metric"
+        "unitSystem": "imperial"
       },
       "alertThresholds": {
         "pushEnabled": false,
@@ -72,7 +72,7 @@
     },
     "block-a-punjab": {
       "id": "block-a-punjab",
-      "name": "Block A \u00b7 Ludhiana, Punjab",
+      "name": "Block A · Ludhiana, Punjab",
       "createdAt": "2026-11-15T02:26:45.185Z",
       "updatedAt": "2026-11-15T03:04:49.142Z",
       "location": {
@@ -106,7 +106,8 @@
           "grain_combine"
         ],
         "prioritizeOwnedEquipment": false,
-        "lang": "en"
+        "lang": "en",
+        "unitSystem": "imperial"
       },
       "alertThresholds": {
         "pushEnabled": false,
@@ -127,6 +128,119 @@
           "notes": "Kharif paddy harvested cleanly; ready for rabi wheat seeding."
         }
       ],
+      "alertHistory": []
+    },
+    "south-68-yakima-bqk6": {
+      "id": "south-68-yakima-bqk6",
+      "name": "South 68 Yakima",
+      "createdAt": "2026-11-15T12:48:45.034Z",
+      "updatedAt": "2026-11-15T12:48:45.034Z",
+      "location": {
+        "id": "yakima-wa",
+        "name": "Yakima Valley, Washington",
+        "region": "Washington",
+        "country": "United States",
+        "lat": 46.6021,
+        "lon": -120.5059,
+        "climateZone": "Semi-Arid Columbia Basin",
+        "usdaZone": "6b",
+        "traditionalCrops": [
+          "apples",
+          "hops",
+          "winter_wheat",
+          "potatoes",
+          "cherries",
+          "pears",
+          "wine_grapes",
+          "sweet_corn",
+          "onions",
+          "alfalfa",
+          "lentils",
+          "barley"
+        ],
+        "regionalZoneLabel": "US Pacific Northwest & Columbia Basin"
+      },
+      "settings": {
+        "currentCropId": "cowpeas",
+        "harvestMonth": 10,
+        "areaAcres": 120,
+        "waterAvailability": "full",
+        "laborAvailability": "moderate",
+        "slopeClass": "flat",
+        "ownedEquipment": [
+          "tractor_tillage",
+          "row_crop_planter",
+          "grain_combine",
+          "sprayer_spreader"
+        ],
+        "prioritizeOwnedEquipment": false,
+        "lang": "en",
+        "unitSystem": "imperial"
+      },
+      "alertThresholds": {
+        "pushEnabled": false,
+        "frostTempC": 2,
+        "heatTempC": 35,
+        "droughtWetnessPct": 32,
+        "heavyRainMm": 35
+      },
+      "harvestLogs": [],
+      "alertHistory": []
+    },
+    "fresno-ca-1rqq": {
+      "id": "fresno-ca-1rqq",
+      "name": "Fresno CA",
+      "createdAt": "2026-11-15T12:48:45.071Z",
+      "updatedAt": "2026-11-15T12:48:45.071Z",
+      "location": {
+        "id": "fresno-ca",
+        "name": "Fresno County, California",
+        "region": "California",
+        "country": "United States",
+        "lat": 36.7468,
+        "lon": -119.7726,
+        "climateZone": "Semi-Arid Mediterranean",
+        "usdaZone": "9b",
+        "traditionalCrops": [
+          "almonds",
+          "wine_grapes",
+          "tomatoes",
+          "cotton",
+          "alfalfa",
+          "citrus",
+          "garlic",
+          "onions",
+          "lettuce",
+          "winter_wheat",
+          "strawberries",
+          "olives"
+        ],
+        "regionalZoneLabel": "California Central Valley"
+      },
+      "settings": {
+        "currentCropId": "common_beans",
+        "harvestMonth": 10,
+        "areaAcres": 80,
+        "waterAvailability": "rainfed",
+        "laborAvailability": "moderate",
+        "slopeClass": "flat",
+        "ownedEquipment": [
+          "tractor_tillage",
+          "row_crop_planter",
+          "grain_combine",
+          "sprayer_spreader"
+        ],
+        "prioritizeOwnedEquipment": false,
+        "lang": "en"
+      },
+      "alertThresholds": {
+        "pushEnabled": false,
+        "frostTempC": 2,
+        "heatTempC": 35,
+        "droughtWetnessPct": 32,
+        "heavyRainMm": 35
+      },
+      "harvestLogs": [],
       "alertHistory": []
     }
   }

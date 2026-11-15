@@ -4,7 +4,6 @@ import {
   Globe,
   MapPin,
   Plus,
-  RefreshCw,
   Search,
   WifiOff,
   X,
@@ -62,8 +61,8 @@ export function WorkspaceToolbar({
   isPreviewingLocation,
   onSelectFarm,
   onCreateFarm,
-  syncState,
-  pendingSyncCount,
+  syncState: _syncState,
+  pendingSyncCount: _pendingSyncCount,
 }: WorkspaceToolbarProps) {
   const [creatingFarm, setCreatingFarm] = useState(false);
   const [newFarmName, setNewFarmName] = useState('');
@@ -117,13 +116,6 @@ export function WorkspaceToolbar({
       : bundle?.dataSources.nasaPower === 'live'
       ? t(lang, 'status_live')
       : t(lang, 'status_benchmark');
-
-  const syncLabel =
-    syncState === 'syncing'
-      ? t(lang, 'sync_syncing')
-      : syncState === 'pending' || pendingSyncCount > 0
-      ? `${t(lang, 'sync_pending')} (${pendingSyncCount})`
-      : t(lang, 'sync_synced');
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,10 +211,6 @@ export function WorkspaceToolbar({
           {bundle && (
             <>
               <span aria-hidden="true">·</span>
-              <span className="font-mono-tabular text-xs">
-                {bundle.location.lat.toFixed(2)}°, {bundle.location.lon.toFixed(2)}°
-              </span>
-              <span aria-hidden="true">·</span>
               <span
                 className={
                   isOfflineActive
@@ -231,19 +219,6 @@ export function WorkspaceToolbar({
                 }
               >
                 {provenanceLabel}
-              </span>
-              <span aria-hidden="true">·</span>
-              <span
-                className={`inline-flex items-center gap-1 text-xs font-medium ${
-                  syncState === 'pending' || pendingSyncCount > 0
-                    ? 'text-[#B45309]'
-                    : 'text-[#475569]'
-                }`}
-              >
-                {syncState === 'syncing' && (
-                  <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" />
-                )}
-                {syncLabel}
               </span>
             </>
           )}
@@ -291,7 +266,7 @@ export function WorkspaceToolbar({
             aria-label="Unit System"
             className="flex items-center gap-0.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-0.5"
           >
-            {(['metric', 'imperial'] as UnitSystem[]).map((sys) => {
+            {(['imperial', 'metric'] as UnitSystem[]).map((sys) => {
               const active = unit === sys;
               return (
                 <button
