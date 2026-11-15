@@ -20,6 +20,7 @@ import {
   analyzeGeospatialWithGemini,
   type GeospatialIngestionPayload,
 } from './server/aiAnalysis.ts';
+import {resolveSeasonalEnsoOutlook} from './server/ensoSeasonal.ts';
 import {runPythonGeospatialIngestion} from './server/geospatialBridge.ts';
 import {
   validateAiAnalyzeRequest,
@@ -924,6 +925,53 @@ async function startServer() {
       country,
     });
     res.json(bundle);
+  });
+
+  // Live NOAA CPC ENSO + Open-Meteo 6-Month Seasonal Water Outlook
+  app.get('/api/seasonal-outlook', async (req, res) => {
+    const lat = Number(req.query.lat ?? 42.036);
+    const lon = Number(req.query.lon ?? -93.465);
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon) ||
+      lat < -90 ||
+      lat > 90 ||
+      lon < -180 ||
+      lon > 180
+    ) {
+      res
+        .status(400)
+        .json({error: 'lat must be -90..90 and lon must be -180..180'});
+      return;
+    }
+
+    const name = String(req.query.name || 'Agricultural Parcel').slice(0, 120);
+    const region = String(req.query.region || 'Agricultural Region').slice(0, 100);
+    const country = String(req.query.country || '').slice(0, 80);
+
+    const fallback = buildRegionalFallbackBundle({
+      id: makeLocationKey(lat, lon),
+      name,
+      region,
+      country,
+      lat,
+      lon,
+      climateZone: 'Satellite Agro-Zone',
+      usdaZone: '6b',
+    });
+
+    let monthlyNormals = fallback.monthlyClimate;
+    try {
+      const nasa = await fetchNasaPower(lat, lon);
+      if (nasa?.monthlyClimate?.length) {
+        monthlyNormals = nasa.monthlyClimate;
+      }
+    } catch {
+      // Keep regional fallback normals
+    }
+
+    const outlook = await resolveSeasonalEnsoOutlook(lat, lon, monthlyNormals);
+    res.json(outlook);
   });
 
   // Farm Profiles List + Active Farm Bootstrapping

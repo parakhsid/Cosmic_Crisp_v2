@@ -143,3 +143,34 @@ export function formatAlertMetricValue(raw: string, unit: UnitSystem): string {
   }
   return raw;
 }
+
+export function formatIrrigationDepth(mm: number, unit: UnitSystem): string {
+  if (unit === 'imperial') {
+    return `${mmToIn(mm).toFixed(1)} in`;
+  }
+  return `${Math.round(finiteOr(mm))} mm`;
+}
+
+export function formatIrrigationVolume(
+  depthMm: number,
+  areaAcres: number,
+  unit: UnitSystem
+): string {
+  const safeAcres = Math.max(1, finiteOr(areaAcres, 1));
+  if (unit === 'imperial') {
+    const acreInches = mmToIn(depthMm) * safeAcres;
+    return `${Math.round(acreInches).toLocaleString()} ac-in`;
+  }
+  const areaHa = acresToHa(safeAcres);
+  const cubicMeters = finiteOr(depthMm) * 10 * areaHa;
+  return `${Math.round(cubicMeters).toLocaleString()} m³`;
+}
+
+export function formatCurrencyPerArea(usdHa: number, unit: UnitSystem): string {
+  const val =
+    unit === 'imperial'
+      ? Math.round(usdHaToUsdAc(usdHa))
+      : Math.round(finiteOr(usdHa));
+  return `$${val.toLocaleString()}${unit === 'imperial' ? '/ac' : '/ha'}`;
+}
+

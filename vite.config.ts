@@ -76,7 +76,7 @@ export default defineConfig(() => {
               },
             },
             {
-              urlPattern: /\/api\/(farm-insights|geocode)/i,
+              urlPattern: /\/api\/(farm-insights|geocode|seasonal-outlook)/i,
               handler: 'NetworkFirst',
               options: {
                 cacheName: 'cosmic-crisp-api-cache',

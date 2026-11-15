@@ -57,6 +57,13 @@ function buildSeedDb(): CosmicCrispDbSchema {
           prioritizeOwnedEquipment: false,
           lang: 'en',
           unitSystem: 'imperial',
+          irrigationPlan: {
+            scenarioOverride: 'live',
+            scarcityLevel: 'moderate',
+            waterSource: 'well',
+            selectedMethod: 'rain_pipes',
+            completedContingencyIds: [],
+          },
         },
         alertThresholds: {...DEFAULT_THRESHOLDS},
         harvestLogs: [
@@ -105,6 +112,13 @@ function buildSeedDb(): CosmicCrispDbSchema {
           prioritizeOwnedEquipment: false,
           lang: 'en',
           unitSystem: 'imperial',
+          irrigationPlan: {
+            scenarioOverride: 'live',
+            scarcityLevel: 'severe',
+            waterSource: 'well',
+            selectedMethod: 'rain_pipes',
+            completedContingencyIds: [],
+          },
         },
         alertThresholds: {
           ...DEFAULT_THRESHOLDS,
@@ -253,6 +267,13 @@ export async function createFarmProfile(input: {
         prioritizeOwnedEquipment: false,
         lang: 'en',
         unitSystem: 'imperial',
+        irrigationPlan: {
+          scenarioOverride: 'live',
+          scarcityLevel: 'moderate',
+          waterSource: 'well',
+          selectedMethod: 'rain_pipes',
+          completedContingencyIds: [],
+        },
         ...(input.settings ?? {}),
       },
       alertThresholds: {...DEFAULT_THRESHOLDS},

@@ -13,6 +13,7 @@ import type {
   LanguageCode,
   LocationOption,
   PredictApiResponse,
+  SeasonalEnsoOutlook,
   SlopeClass,
   SyncQueueMutation,
   WaterAvailability,
@@ -174,4 +175,22 @@ export function analyzeWithAiApi(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+export function fetchSeasonalOutlookApi(loc: {
+  lat: number;
+  lon: number;
+  name?: string;
+  region?: string;
+  country?: string;
+}): Promise<SeasonalEnsoOutlook> {
+  const qs = new URLSearchParams({
+    lat: String(loc.lat),
+    lon: String(loc.lon),
+    name: loc.name ?? '',
+    region: loc.region ?? '',
+    country: loc.country ?? '',
+  });
+  return apiJson(`/api/seasonal-outlook?${qs.toString()}`);
+}
+
 

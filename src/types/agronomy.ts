@@ -1,7 +1,7 @@
 export type LanguageCode = 'en' | 'es' | 'hi' | 'fr' | 'pt';
 export type UnitSystem = 'metric' | 'imperial';
 
-export type NavTab = 'overview' | 'climate' | 'alerts' | 'log';
+export type NavTab = 'overview' | 'climate' | 'irrigation' | 'alerts' | 'log';
 
 export type CropFamily =
   | 'grass'
@@ -255,6 +255,26 @@ export interface DispatchedAlertLog {
   sentAt: string;
 }
 
+export type EnsoPhase = 'el_nino' | 'la_nina' | 'neutral';
+export type EnsoScenarioMode = 'live' | EnsoPhase;
+export type WaterScarcityLevel = 'abundant' | 'moderate' | 'severe';
+export type WaterSourceType = 'well' | 'canal' | 'rain_harvest' | 'mixed';
+export type IrrigationMethodId =
+  | 'rain_pipes'
+  | 'drip'
+  | 'sprinkler'
+  | 'furrow'
+  | 'drainage';
+
+export interface IrrigationPlanSettings {
+  scenarioOverride: EnsoScenarioMode;
+  scarcityLevel: WaterScarcityLevel;
+  waterSource: WaterSourceType;
+  selectedMethod: IrrigationMethodId;
+  completedContingencyIds: string[];
+  updatedAt?: string;
+}
+
 export interface FarmSettings {
   currentCropId: string;
   harvestMonth: number;
@@ -266,6 +286,7 @@ export interface FarmSettings {
   prioritizeOwnedEquipment: boolean;
   lang: LanguageCode;
   unitSystem?: UnitSystem;
+  irrigationPlan?: IrrigationPlanSettings;
 }
 
 export interface FarmProfileRecord {
@@ -386,3 +407,101 @@ export interface AiAnalyzeApiResponse {
   geospatial: GeospatialIngestionPayload;
   analysis: AiAgronomyAnalysis;
 }
+
+export interface SeasonalOutlookMonth {
+  monthKey: string;
+  monthIndex: number;
+  monthLabel: string;
+  precipMeanMm: number;
+  precipP10Mm: number;
+  precipP90Mm: number;
+  normalPrecipMm: number;
+  tempMeanC: number;
+  normalTempC: number;
+  et0Mm: number;
+  heavyRainDaysAvg: number;
+}
+
+export interface SeasonalEnsoOutlook {
+  fetchedAt: string;
+  source: 'live_noaa_openmeteo' | 'regional_benchmark';
+  currentSeasonLabel: string;
+  oniValueC: number;
+  oniTrendDeltaC: number;
+  phase: EnsoPhase;
+  probabilities: {
+    elNinoPct: number;
+    neutralPct: number;
+    laNinaPct: number;
+  };
+  ensoSummaryNote: string;
+  months: SeasonalOutlookMonth[];
+}
+
+export interface MonthlyIrrigationBalance {
+  monthKey: string;
+  monthIndex: number;
+  monthLabel: string;
+  forecastPrecipMm: number;
+  p10PrecipMm: number;
+  p90PrecipMm: number;
+  normalPrecipMm: number;
+  precipAnomalyPct: number;
+  tempC: number;
+  et0Mm: number;
+  cropKc: number;
+  cropEtcMm: number;
+  effectiveRainMm: number;
+  netBalanceMm: number;
+  irrigationNeedMm: number;
+  drainageSurplusMm: number;
+  floodRisk: 'low' | 'moderate' | 'high';
+  droughtRisk: 'low' | 'moderate' | 'high';
+  actionSummary: string;
+  recommendedFocus: IrrigationMethodId;
+}
+
+export interface IrrigationMethodRecommendation {
+  methodId: IrrigationMethodId;
+  name: string;
+  shortLabel: string;
+  score: number;
+  applicationEfficiencyPct: number;
+  seasonalAppliedWaterMm: number;
+  waterSavedVsFurrowPct: number;
+  scarcityFit: 'optimal' | 'good' | 'poor';
+  floodResilience: 'high' | 'moderate' | 'low';
+  estCapexUsdPerHa: number;
+  estSeasonalOpexUsdPerHa: number;
+  rationale: string;
+  bestUseCase: string;
+  contingencyNote: string;
+}
+
+export interface ContingencyActionItem {
+  id: string;
+  category: 'scarcity' | 'flood' | 'enso';
+  priority: 'critical' | 'high' | 'moderate';
+  title: string;
+  detail: string;
+  targetTiming: string;
+}
+
+export interface IrrigationDecisionResult {
+  activeScenario: EnsoPhase;
+  teleconnectionLabel: string;
+  teleconnectionRainShiftPct: number;
+  teleconnectionTempShiftC: number;
+  soilAwcMmPerM: number;
+  total6MoPrecipMm: number;
+  total6MoCropEtcMm: number;
+  total6MoIrrigationNeedMm: number;
+  total6MoDrainageSurplusMm: number;
+  floodAlertMonths: number;
+  droughtAlertMonths: number;
+  monthlyBalances: MonthlyIrrigationBalance[];
+  methods: IrrigationMethodRecommendation[];
+  topMethod: IrrigationMethodRecommendation;
+  contingencyActions: ContingencyActionItem[];
+}
+

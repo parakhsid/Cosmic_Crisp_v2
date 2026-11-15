@@ -3,6 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {AlertsAndOfflineView} from './components/AlertsAndOfflineView';
 import {ClimateAnalyticsView} from './components/ClimateAnalyticsView';
 import {FarmLogView} from './components/FarmLogView';
+import {IrrigationPlannerView} from './components/IrrigationPlannerView';
 import {MobileBottomNav} from './components/MobileBottomNav';
 import {OverviewDashboard} from './components/OverviewDashboard';
 import {TopBar} from './components/TopBar';
@@ -21,6 +22,7 @@ import {
   createFarmApi,
   deleteHarvestLogApi,
   fetchFarmsBootstrap,
+  fetchSeasonalOutlookApi,
   patchFarmSettingsApi,
   predictNextCropsApi,
   syncOfflineMutationsApi,
@@ -58,10 +60,12 @@ import type {
   FarmProfileSummary,
   FarmSettings,
   HarvestLogEntry,
+  IrrigationPlanSettings,
   LaborAvailability,
   LanguageCode,
   LocationOption,
   NavTab,
+  SeasonalEnsoOutlook,
   SlopeClass,
   SyncQueueMutation,
   UnitSystem,
@@ -71,6 +75,14 @@ import type {
 } from './types/agronomy';
 
 const DEFAULT_FARM_ID = 'north-40-iowa';
+
+const DEFAULT_IRRIGATION_PLAN: IrrigationPlanSettings = {
+  scenarioOverride: 'live',
+  scarcityLevel: 'moderate',
+  waterSource: 'well',
+  selectedMethod: 'rain_pipes',
+  completedContingencyIds: [],
+};
 
 export default function App() {
   const isOnline = useOnlineStatus();
@@ -149,10 +161,17 @@ export default function App() {
     DEFAULT_OWNED_EQUIPMENT
   );
   const [prioritizeOwnedEquipment, setPrioritizeOwnedEquipment] = useState(false);
+  const [irrigationPlan, setIrrigationPlan] = useState<IrrigationPlanSettings>(
+    DEFAULT_IRRIGATION_PLAN
+  );
 
   const [bundle, setBundle] = useState<FarmInsightBundle | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(true);
   const [servedFromCache, setServedFromCache] = useState(false);
+  const [seasonalOutlook, setSeasonalOutlook] = useState<SeasonalEnsoOutlook | null>(
+    null
+  );
+  const [loadingOutlook, setLoadingOutlook] = useState(false);
 
   const [sensitivity, setSensitivity] = useState<YieldSensitivity>({
     rainfallDeltaPct: 0,
@@ -222,6 +241,13 @@ export default function App() {
           : 'imperial';
       setUnit(resolvedUnit);
       localStorage.setItem('cosmic_crisp_unit_system_v2', resolvedUnit);
+      setIrrigationPlan(
+        farm.settings.irrigationPlan ?? {
+          ...DEFAULT_IRRIGATION_PLAN,
+          scarcityLevel:
+            farm.settings.waterAvailability === 'full' ? 'abundant' : 'moderate',
+        }
+      );
       setThresholds(farm.alertThresholds);
       setHarvestLogs(farm.harvestLogs);
       setAlertHistory(farm.alertHistory);
@@ -394,6 +420,7 @@ export default function App() {
           prioritizeOwnedEquipment,
           lang,
           unitSystem: unit,
+          irrigationPlan,
         },
         alertThresholds: thresholds,
         harvestLogs,
@@ -415,6 +442,7 @@ export default function App() {
       prioritizeOwnedEquipment,
       lang,
       unit,
+      irrigationPlan,
       thresholds,
       harvestLogs,
       alertHistory,
@@ -527,6 +555,7 @@ export default function App() {
         prioritizeOwnedEquipment,
         lang,
         unitSystem: unit,
+        irrigationPlan,
       },
     });
     updateFarmsList(updatedList);
@@ -653,6 +682,66 @@ export default function App() {
   useEffect(() => {
     void loadFarmInsights(selectedLocation, isOfflineActive);
   }, [selectedLocation, isOfflineActive, loadFarmInsights]);
+
+  // Load 6-month NOAA ONI + Open-Meteo Seasonal ensemble outlook (with offline cache fallback)
+  const loadSeasonalOutlook = useCallback(
+    async (loc: LocationOption, offlineMode: boolean) => {
+      const cacheKey = `cosmic_crisp_seasonal_${makeLocationKey(loc.lat, loc.lon)}`;
+      const readCached = (): SeasonalEnsoOutlook | null => {
+        try {
+          const raw = localStorage.getItem(cacheKey);
+          return raw ? (JSON.parse(raw) as SeasonalEnsoOutlook) : null;
+        } catch {
+          return null;
+        }
+      };
+
+      if (offlineMode) {
+        setSeasonalOutlook(readCached());
+        setLoadingOutlook(false);
+        return;
+      }
+
+      setLoadingOutlook(true);
+      try {
+        const data = await fetchSeasonalOutlookApi(loc);
+        setSeasonalOutlook(data);
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(data));
+        } catch {
+          // Ignore localStorage quota errors
+        }
+      } catch {
+        setSeasonalOutlook(readCached());
+      } finally {
+        setLoadingOutlook(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    void loadSeasonalOutlook(selectedLocation, isOfflineActive);
+  }, [selectedLocation, isOfflineActive, loadSeasonalOutlook]);
+
+  const handleUpdateIrrigationPlan = useCallback(
+    async (next: IrrigationPlanSettings) => {
+      setIrrigationPlan(next);
+      await persistSettingsPatch({irrigationPlan: next});
+    },
+    [persistSettingsPatch]
+  );
+
+  const activeFarmName = useMemo(() => {
+    if (isPreviewingLocation) {
+      return bundle?.location.name ?? selectedLocation.name;
+    }
+    return (
+      farms.find((f) => f.id === activeFarmId)?.name ??
+      bundle?.location.name ??
+      selectedLocation.name
+    );
+  }, [isPreviewingLocation, farms, activeFarmId, bundle, selectedLocation.name]);
 
   useEffect(() => {
     if (bundle && !slopeOverridden) {
@@ -1086,6 +1175,24 @@ export default function App() {
             baselinePredictions={predictions}
             sensitivity={sensitivity}
             onChangeSensitivity={setSensitivity}
+          />
+        )}
+
+        {activeTab === 'irrigation' && (
+          <IrrigationPlannerView
+            lang={lang}
+            unit={unit}
+            bundle={bundle}
+            outlook={seasonalOutlook}
+            loadingOutlook={loadingOutlook}
+            isOfflineActive={isOfflineActive}
+            activeFarmName={activeFarmName}
+            currentCropId={currentCropId}
+            harvestMonth={harvestMonth}
+            areaAcres={areaAcres}
+            slopeClass={slopeClass}
+            irrigationPlan={irrigationPlan}
+            onUpdatePlan={handleUpdateIrrigationPlan}
           />
         )}
 

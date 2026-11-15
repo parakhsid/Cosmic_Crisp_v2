@@ -27,6 +27,7 @@ export function TopBar({
   const navItems: Array<{id: NavTab; label: string}> = [
     {id: 'overview', label: t(lang, 'nav_overview')},
     {id: 'climate', label: t(lang, 'nav_climate')},
+    {id: 'irrigation', label: t(lang, 'nav_irrigation')},
     {
       id: 'alerts',
       label:

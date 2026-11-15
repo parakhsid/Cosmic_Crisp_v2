@@ -2,10 +2,13 @@ import {ALL_EQUIPMENT_IDS, CROP_SPECS} from '../src/data/cropsAndLocations.ts';
 import type {
   AlertThresholds,
   DispatchedAlertLog,
+  EnsoScenarioMode,
   EquipmentId,
   FarmInsightBundle,
   FarmSettings,
   HarvestLogEntry,
+  IrrigationMethodId,
+  IrrigationPlanSettings,
   LaborAvailability,
   LanguageCode,
   LocationOption,
@@ -13,6 +16,8 @@ import type {
   SyncQueueMutation,
   UnitSystem,
   WaterAvailability,
+  WaterScarcityLevel,
+  WaterSourceType,
   YieldSensitivity,
 } from '../src/types/agronomy.ts';
 
@@ -27,6 +32,30 @@ const VALID_LABOR = new Set<LaborAvailability>(['low', 'moderate', 'high']);
 const VALID_SLOPE = new Set<SlopeClass>(['flat', 'gentle', 'steep']);
 const VALID_LANGS = new Set<LanguageCode>(['en', 'es', 'hi', 'fr', 'pt']);
 const VALID_UNITS = new Set<UnitSystem>(['metric', 'imperial']);
+const VALID_SCENARIOS = new Set<EnsoScenarioMode>([
+  'live',
+  'el_nino',
+  'la_nina',
+  'neutral',
+]);
+const VALID_SCARCITY = new Set<WaterScarcityLevel>([
+  'abundant',
+  'moderate',
+  'severe',
+]);
+const VALID_WATER_SOURCE = new Set<WaterSourceType>([
+  'well',
+  'canal',
+  'rain_harvest',
+  'mixed',
+]);
+const VALID_IRRIG_METHODS = new Set<IrrigationMethodId>([
+  'rain_pipes',
+  'drip',
+  'sprinkler',
+  'furrow',
+  'drainage',
+]);
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -279,6 +308,47 @@ export function validateSettingsPatch(
       errors.push('unitSystem must be metric or imperial');
     } else {
       out.unitSystem = body.unitSystem as UnitSystem;
+    }
+  }
+
+  if (body.irrigationPlan !== undefined) {
+    if (!isRecord(body.irrigationPlan)) {
+      errors.push('irrigationPlan must be an object');
+    } else {
+      const ip = body.irrigationPlan;
+      if (!VALID_SCENARIOS.has(ip.scenarioOverride as EnsoScenarioMode)) {
+        errors.push('irrigationPlan.scenarioOverride must be live, el_nino, la_nina, or neutral');
+      } else if (!VALID_SCARCITY.has(ip.scarcityLevel as WaterScarcityLevel)) {
+        errors.push('irrigationPlan.scarcityLevel must be abundant, moderate, or severe');
+      } else if (!VALID_WATER_SOURCE.has(ip.waterSource as WaterSourceType)) {
+        errors.push('irrigationPlan.waterSource must be well, canal, rain_harvest, or mixed');
+      } else if (!VALID_IRRIG_METHODS.has(ip.selectedMethod as IrrigationMethodId)) {
+        errors.push('irrigationPlan.selectedMethod must be rain_pipes, drip, sprinkler, furrow, or drainage');
+      } else if (
+        ip.completedContingencyIds !== undefined &&
+        (!Array.isArray(ip.completedContingencyIds) ||
+          ip.completedContingencyIds.some((x) => typeof x !== 'string'))
+      ) {
+        errors.push('irrigationPlan.completedContingencyIds must be an array of strings');
+      } else {
+        const cleanPlan: IrrigationPlanSettings = {
+          scenarioOverride: ip.scenarioOverride as EnsoScenarioMode,
+          scarcityLevel: ip.scarcityLevel as WaterScarcityLevel,
+          waterSource: ip.waterSource as WaterSourceType,
+          selectedMethod: ip.selectedMethod as IrrigationMethodId,
+          completedContingencyIds: Array.isArray(ip.completedContingencyIds)
+            ? Array.from(
+                new Set(
+                  ip.completedContingencyIds
+                    .map((s) => String(s).trim().slice(0, 64))
+                    .filter(Boolean)
+                )
+              )
+            : [],
+          updatedAt: new Date().toISOString(),
+        };
+        out.irrigationPlan = cleanPlan;
+      }
     }
   }
 
